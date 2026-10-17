@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_mouse_acceleration">Air movement acceleration: %s (0 = off, 3 = maximum)</string>
     <string name="settings_realtime_drag">Live press and drag (experimental)</string>
     <string name="settings_realtime_drag_info">Press starts touch immediately; hold to drag, release to lift. Touch, not a system mouse. Safety release after 30 seconds. Disable for the original deferred mode.</string>
     <string name="settings_drag_segment_ms">Drag segment duration (ms): lower = faster, higher = steadier. Default 16.</string>
