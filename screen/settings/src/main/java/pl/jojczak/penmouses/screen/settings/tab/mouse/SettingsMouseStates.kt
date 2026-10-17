@@ -7,6 +7,7 @@ import pl.jojczak.penmouses.screen.settings.mvi.SettingsTabCursorState
 internal data class SettingsMouseState(
     override val cursorType: CursorType = CursorType.Light,
     val sPenSensitivity: Float = 0.0f,
+    val mouseAcceleration: Float = 1.5f,
     val cursorHideDelay: Float = 0f,
     val sPenSleepEnabled: Boolean = false,
     val cursorSize: Float = 0f,
