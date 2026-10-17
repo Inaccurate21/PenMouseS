@@ -1,0 +1,145 @@
+package pl.jojczak.penmouses.mousemode.mouse
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.provider.Settings
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.WindowManager
+import android.widget.TextView
+import pl.jojczak.penmouses.core.common.utils.PrefKeys
+import pl.jojczak.penmouses.core.common.utils.PreferencesManager
+
+/**
+ * Lightweight accessibility overlay without SYSTEM_ALERT_WINDOW.
+ * A missing battery value is deliberately reported as unavailable, not as phone battery.
+ * Samsung's public S Pen Remote SDK does not provide battery level. We attempt only
+ * harmless, read-only Samsung-specific settings, which can be missing on One UI.
+ */
+internal class SPenBatteryOverlay(
+    private val context: Context,
+    private val preferences: PreferencesManager,
+) {
+    private val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val label = TextView(context)
+    private var attached = false
+    private var unlocked = false
+    private var anchorX = 0f
+    private var anchorY = 0f
+    private var anchorScreenX = 0
+    private var anchorScreenY = 0
+    private val density = context.resources.displayMetrics.density
+
+    private val layout = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+        android.graphics.PixelFormat.TRANSLUCENT,
+    ).apply { gravity = Gravity.TOP or Gravity.START }
+
+    init {
+        label.textSize = 13f
+        label.setPadding(dp(10), dp(7), dp(10), dp(7))
+        label.setOnTouchListener { _, event ->
+            if (!unlocked) return@setOnTouchListener false
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    anchorX = event.rawX
+                    anchorY = event.rawY
+                    anchorScreenX = layout.x
+                    anchorScreenY = layout.y
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val metrics = context.resources.displayMetrics
+                    layout.x = (anchorScreenX + event.rawX - anchorX).toInt().coerceIn(0, (metrics.widthPixels - label.width).coerceAtLeast(0))
+                    layout.y = (anchorScreenY + event.rawY - anchorY).toInt().coerceIn(0, (metrics.heightPixels - label.height).coerceAtLeast(0))
+                    applyLayout()
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val metrics = context.resources.displayMetrics
+                    preferences.put(PrefKeys.MOUSE_BATTERY_OVERLAY_X, (layout.x.toFloat() / metrics.widthPixels.coerceAtLeast(1)).coerceIn(0f, 1f))
+                    preferences.put(PrefKeys.MOUSE_BATTERY_OVERLAY_Y, (layout.y.toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(0f, 1f))
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    fun refresh() {
+        if (!preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY)) {
+            hide()
+            return
+        }
+
+        val batteryLevel = readBatteryLevel()
+        label.text = if (batteryLevel != null) "S Pen  ${batteryLevel}%" else "S Pen  —"
+        label.contentDescription = if (batteryLevel != null) "S Pen: ${batteryLevel}%" else "S Pen: poziom baterii niedostępny"
+
+        val colors = intArrayOf(0xE51E1E1E.toInt(), 0xF5EEEEEE.toInt(), 0xED2457B8.toInt(), 0xED147D52.toInt())
+        val choice = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR).toInt().coerceIn(0, 3)
+        val background = GradientDrawable().apply {
+            setColor(colors[choice])
+            cornerRadius = dp(14).toFloat()
+        }
+        label.background = background
+        label.setTextColor(if (choice == 1) Color.BLACK else Color.WHITE)
+        label.alpha = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA).coerceIn(0.2f, 1f)
+
+        val shouldUnlock = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED)
+        layout.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            (if (shouldUnlock) 0 else WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+        unlocked = shouldUnlock
+
+        if (!attached) {
+            val metrics = context.resources.displayMetrics
+            layout.x = (preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X) * metrics.widthPixels).toInt()
+            layout.y = (preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y) * metrics.heightPixels).toInt()
+            try {
+                manager.addView(label, layout)
+                attached = true
+            } catch (_: RuntimeException) {
+                attached = false
+            }
+        } else {
+            // While unlocked, do not override the position being dragged.
+            if (!unlocked) {
+                val metrics = context.resources.displayMetrics
+                layout.x = (preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X) * metrics.widthPixels).toInt()
+                layout.y = (preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y) * metrics.heightPixels).toInt()
+            }
+            applyLayout()
+        }
+    }
+
+    private fun applyLayout() {
+        if (attached && label.isAttachedToWindow) {
+            try { manager.updateViewLayout(label, layout) } catch (_: IllegalArgumentException) { }
+        }
+    }
+
+    fun hide() {
+        if (!attached) return
+        try { manager.removeView(label) } catch (_: IllegalArgumentException) { }
+        attached = false
+    }
+
+    private fun dp(value: Int) = (density * value).toInt()
+
+    /**
+     * Diagnostic candidates; verified S Pen-only names, never the phone's battery level.
+     * New Samsung firmware might not expose them to third-party apps.
+     */
+    private fun readBatteryLevel(): Int? {
+        val keys = arrayOf("spen_battery_level", "spen_battery_percentage")
+        for (key in keys) {
+            val level = try { Settings.System.getInt(context.contentResolver, key, -1) } catch (_: Exception) { -1 }
+            if (level in 0..100) return level
+        }
+        return null
+    }
+}
