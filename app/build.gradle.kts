@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         applicationId = "pl.inaccurate21.penmouses.live"
-        versionNameSuffix = "-live.1"
+        versionNameSuffix = "-live.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
