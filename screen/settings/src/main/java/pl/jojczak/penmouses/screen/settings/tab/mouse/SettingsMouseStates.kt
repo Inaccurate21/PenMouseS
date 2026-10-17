@@ -14,9 +14,17 @@ internal data class SettingsMouseState(
     val cursorAlpha: Float = 0f,
     val realtimeDragEnabled: Boolean = false,
     val dragSegmentMs: Float = 16f,
+    val batteryOverlayEnabled: Boolean = false,
+    val batteryOverlayUnlocked: Boolean = false,
+    val batteryOverlayAlpha: Float = 0.9f,
+    val batteryOverlayX: Float = 0.8f,
+    val batteryOverlayY: Float = 0.08f,
+    val batteryOverlayColor: Float = 0f,
 ) : SettingsTabCursorState()
 
 internal sealed class SettingsMouseViewAction : SettingsCursorViewAction() {
     data class SPenSleepEnabled(val enabled: Boolean) : SettingsMouseViewAction()
+    data class BatteryOverlayEnabled(val enabled: Boolean) : SettingsMouseViewAction()
+    data class BatteryOverlayUnlocked(val unlocked: Boolean) : SettingsMouseViewAction()
     data class RealtimeDragEnabled(val enabled: Boolean) : SettingsMouseViewAction()
 }
