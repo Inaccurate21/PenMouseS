@@ -33,6 +33,12 @@ internal class SettingsMouseViewModel @Inject constructor(
             cursorAlpha = preferencesManager.get(PrefKeys.MOUSE_CURSOR_ALPHA),
             realtimeDragEnabled = preferencesManager.get(PrefKeys.MOUSE_REALTIME_DRAG),
             dragSegmentMs = preferencesManager.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS),
+            batteryOverlayEnabled = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
+            batteryOverlayUnlocked = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED),
+            batteryOverlayAlpha = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA),
+            batteryOverlayX = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
+            batteryOverlayY = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
+            batteryOverlayColor = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR),
         )
     }
 
@@ -43,6 +49,16 @@ internal class SettingsMouseViewModel @Inject constructor(
         is SettingsCursorViewAction.CursorTypeChanged -> onCursorTypeChange(action.cursorType)
         is SettingsCursorViewAction.CustomCursorFileSelected -> loadCustomCursorImage(action.uri)
         is SettingsMouseViewAction.SPenSleepEnabled -> onSPenSleepEnabledChange(action.enabled)
+        is SettingsMouseViewAction.BatteryOverlayEnabled -> {
+            updateState { it.copy(batteryOverlayEnabled = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY, action.enabled)
+            tryToPingService()
+        }
+        is SettingsMouseViewAction.BatteryOverlayUnlocked -> {
+            updateState { it.copy(batteryOverlayUnlocked = action.unlocked) }
+            preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED, action.unlocked)
+            tryToPingService()
+        }
         is SettingsMouseViewAction.RealtimeDragEnabled -> {
             updateState { it.copy(realtimeDragEnabled = action.enabled) }
             preferencesManager.put(PrefKeys.MOUSE_REALTIME_DRAG, action.enabled)
@@ -71,6 +87,10 @@ internal class SettingsMouseViewModel @Inject constructor(
         }
 
         PrefKeys.MOUSE_DRAG_SEGMENT_MS -> updateState { it.copy(dragSegmentMs = action.value as Float) }
+        PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA -> updateState { it.copy(batteryOverlayAlpha = action.value as Float) }
+        PrefKeys.MOUSE_BATTERY_OVERLAY_X -> updateState { it.copy(batteryOverlayX = action.value as Float) }
+        PrefKeys.MOUSE_BATTERY_OVERLAY_Y -> updateState { it.copy(batteryOverlayY = action.value as Float) }
+        PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR -> updateState { it.copy(batteryOverlayColor = action.value as Float) }
 
         else -> {}
     }
