@@ -5,5 +5,4 @@
     android:canRetrieveWindowContent="false"
     android:description="@string/pen_mouse_s_service_description"
     android:notificationTimeout="100"
-    android:packageNames="pl.jojczak.penmouses"
-    android:settingsActivity="pl.jojczak.penmouses.ui.main.MainActivity" />
+    android:settingsActivity="pl.jojczak.penmouses.main.MainActivity" />

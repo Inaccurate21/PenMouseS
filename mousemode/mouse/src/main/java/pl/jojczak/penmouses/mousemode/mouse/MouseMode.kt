@@ -3,11 +3,15 @@ package pl.jojczak.penmouses.mousemode.mouse
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Path
 import android.graphics.Point
 import android.os.Handler
 import android.os.SystemClock
-import android.util.Log
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.samsung.android.sdk.penremote.ButtonEvent
 import pl.jojczak.penmouses.core.common.notifications.NotificationsManager
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
@@ -22,9 +26,11 @@ import pl.jojczak.penmouses.mousemode.base.PenRunnable
 import pl.jojczak.penmouses.mousemode.basecursor.CursorMode
 import kotlin.math.pow
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
+import pl.jojczak.penmouses.core.ui.R as coreR
 
 class MouseMode(
-    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Unit,
+    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Boolean,
     notificationsManager: NotificationsManager,
     preferences: PreferencesManager,
     sPenManager: SPenManager,
@@ -43,6 +49,40 @@ class MouseMode(
     private var prefSensitivity = cursorPreferences.getSensitivity()
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
+    private var realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
+    private var dragController: RealtimeDragController? = null
+    private var legacyButtonDown = false
+    private var ignoreUntilRelease = false
+    private var motionX: Float? = null
+    private var motionY: Float? = null
+    private var receiverRegistered = false
+    private var dragGeneration = 0L
+
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) stopService()
+        }
+    }
+
+    private fun newDragController(): RealtimeDragController {
+        val generation = ++dragGeneration
+        val backend = AndroidDragBackend(dispatchGesture)
+        return RealtimeDragController(
+            backend = backend,
+            schedule = backend::schedule,
+            segmentDurationMs = preferences.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS).toLong(),
+            onFinished = { result ->
+                if (generation != dragGeneration || !canStartJobs) return@RealtimeDragController
+                cursorAnimator.releaseCursor()
+                ignoreUntilRelease = sPenManager.isSPenButtonDown
+                hideCursor()
+                if (result != RealtimeDragController.Result.RELEASED &&
+                    result != RealtimeDragController.Result.CLOSED) {
+                    Toast.makeText(context, context.getString(coreR.string.realtime_drag_interrupted), Toast.LENGTH_LONG).show()
+                }
+            },
+        )
+    }
 
     private var path = Path()
     private var pathStartTime: Long = 0
@@ -56,11 +96,17 @@ class MouseMode(
         super.start()
 
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
+        if (realtimeEnabled) dragController = newDragController()
+        ContextCompat.registerReceiver(context, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
+        receiverRegistered = true
+        sPenManager.onConnectionLost = { stopService() }
 
         sPenManager.connect(object : ConnectionResultCallback() {
             override fun onSuccess() {
+                if (!canStartJobs) return
                 pingCursor()
                 mainHandler.postDelayed({
+                    if (!canStartJobs) return@postDelayed
                     sPenManager.registerButtonEventListener(
                         ::onButtonEvent,
                         ::showErrorAndStopService
@@ -71,19 +117,51 @@ class MouseMode(
                     )
                 }, PenConst.DELAY_TO_EVENT_REGISTER_MS)
             }
+
+            override fun onFailure(errorCode: Int) = showErrorAndStopService(errorCode)
         })
     }
 
     override fun stop() {
+        ++dragGeneration
+        dragController?.close()
+        dragController = null
+        legacyButtonDown = false
+        sPenManager.onConnectionLost = null
+        if (receiverRegistered) {
+            context.unregisterReceiver(screenOffReceiver)
+            receiverRegistered = false
+        }
         super.stop()
         sPenManager.disconnect()
     }
 
     private fun onButtonEvent(@ButtonAction type: Int, timeStamp: Long) {
+        if (!canStartJobs) return
+        if (type == ButtonEvent.ACTION_UP && ignoreUntilRelease) {
+            ignoreUntilRelease = false
+            return
+        }
+        if (ignoreUntilRelease) return
+        if (realtimeEnabled) {
+            if (type == ButtonEvent.ACTION_DOWN) {
+                showCursor()
+                val point = getCursorPos()
+                if (dragController?.press(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat())) == true) {
+                    cursorAnimator.clickCursor()
+                }
+            } else if (type == ButtonEvent.ACTION_UP) {
+                dragController?.release()
+            }
+            return
+        }
         if (type == ButtonEvent.ACTION_DOWN) {
+            if (legacyButtonDown) return
+            legacyButtonDown = true
             showCursor()
             val cursorPosition = getCursorPos()
-            pathStartTime = timeStamp
+            // Use one known monotonic clock; Samsung timestamp units vary by SDK/framework.
+            pathStartTime = SystemClock.uptimeMillis()
             cursorStartPos = Point(cursorPosition)
             cursorAnimator.clickCursor()
 
@@ -92,36 +170,43 @@ class MouseMode(
 
             mainHandler.post(updateStrokePathJob)
         } else if (type == ButtonEvent.ACTION_UP) {
+            if (!legacyButtonDown) return
+            legacyButtonDown = false
             hideCursor()
             cursorAnimator.releaseCursor()
 
             mainHandler.removeCallbacks(updateStrokePathJob)
 
-            performGesture(duration = timeStamp - pathStartTime)
+            performGesture(duration = SystemClock.uptimeMillis() - pathStartTime)
         }
     }
 
     private fun onAirMotionEvent(deltaX: Float, deltaY: Float, timeStamp: Long) {
-        Log.d(tagName, "Motion event: X: $deltaX, Y: $deltaY")
+        if (!canStartJobs || !deltaX.isFinite() || !deltaY.isFinite()) return
         pingCursor()
 
         val (screenWidth, screenHeight) = getDisplaySize(getDisplay())
 
-        // @formatter:off
+        val position = getCursorPos()
+        motionX = ((motionX ?: position.x.toFloat()) + deltaX * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
+        motionY = ((motionY ?: position.y.toFloat()) - deltaY * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
-            x = (x + (deltaX * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).toInt()).coerceIn(0, screenWidth)
-            y = (y + (-deltaY * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).toInt()).coerceIn(0, screenHeight)
+            x = motionX!!.roundToInt()
+            y = motionY!!.roundToInt()
         }
-        // @formatter:on
+        if (realtimeEnabled) {
+            val point = getCursorPos()
+            dragController?.move(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat()))
+        }
     }
 
     private val updateStrokePathJob = object : PenRunnable(canStartJobs) {
         override fun callback() {
-            if (!sPenManager.isSPenButtonDown) return
+            if (!legacyButtonDown) return
 
-            val duration = SystemClock.elapsedRealtime() - pathStartTime
+            val duration = SystemClock.uptimeMillis() - pathStartTime
             if (duration >= PenConst.MAX_CLICK_TIME_MS) {
-                sPenManager.isSPenButtonDown = false
+                legacyButtonDown = false
                 cursorAnimator.releaseCursor()
                 performGesture(PenConst.MAX_CLICK_TIME_MS)
                 return
@@ -148,7 +233,7 @@ class MouseMode(
             (duration / 2) to path
         }
 
-        val stroke = GestureDescription.StrokeDescription(mPath, 0, mDuration)
+        val stroke = GestureDescription.StrokeDescription(mPath, 0, mDuration.coerceIn(1L, PenConst.MAX_CLICK_TIME_MS))
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         dispatchGesture(gesture, null, null)
     }
@@ -177,6 +262,7 @@ class MouseMode(
     }
 
     private fun hideCursor() {
+        if (!canStartJobs || dragController?.isActive == true || legacyButtonDown) return
         if (prefHideDelay == PrefKeys.MOUSE_CURSOR_HIDE_DELAY.range.endInclusive.toLong()) {
             if (prefIsSleepEnabled) {
                 mainHandler.postDelayed(sleepJob, prefHideDelay + SLEEP_DELAY_MS_HIDING_DISABLED)
@@ -204,6 +290,14 @@ class MouseMode(
 
     override fun preferencesUpdated() {
         super.preferencesUpdated()
+        legacyButtonDown = false
+        mainHandler.removeCallbacks(updateStrokePathJob)
+        cursorAnimator.releaseCursor()
+        ++dragGeneration
+        dragController?.close()
+        ignoreUntilRelease = sPenManager.isSPenButtonDown
+        realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
+        dragController = if (realtimeEnabled) newDragController() else null
         prefHideDelay = cursorPreferences.getHideDelay()
         prefSensitivity = cursorPreferences.getSensitivity()
         prefIsSleepEnabled = cursorPreferences.isSleepEnabled()

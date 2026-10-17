@@ -21,7 +21,7 @@ import pl.jojczak.penmouses.mousemode.base.BaseMode
 import pl.jojczak.penmouses.mousemode.base.PenConst
 
 class ScrollMode(
-    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Unit,
+    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Boolean,
     notificationsManager: NotificationsManager,
     preferences: PreferencesManager,
     sPenManager: SPenManager,

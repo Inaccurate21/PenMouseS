@@ -13,7 +13,7 @@ import pl.jojczak.penmouses.core.ui.R as coreR
 
 abstract class BaseMode(
     protected val notificationsManager: NotificationsManager,
-    protected val dispatchGesture: (GestureDescription, GestureResultCallback?, Handler?) -> Unit,
+    protected val dispatchGesture: (GestureDescription, GestureResultCallback?, Handler?) -> Boolean,
     protected val preferences: PreferencesManager,
     protected val sPenManager: SPenManager,
     protected val stopService: () -> Unit,

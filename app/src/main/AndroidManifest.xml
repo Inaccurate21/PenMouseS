@@ -27,7 +27,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="penmouses" android:host="open_main" />
+                <data android:scheme="penmouses-live" android:host="open_main" />
             </intent-filter>
         </activity>
 

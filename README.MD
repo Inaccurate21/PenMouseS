@@ -5,6 +5,11 @@
 </p>
 
 # PenMouse S
+
+> **PenMouse S Live — experimental phone-only fork:** optional live press-and-drag,
+> separate install alongside upstream, and a no-secrets debug build. See
+> [Polish setup and test guide](docs/LIVE_DRAG.md). The original deferred mode
+> remains the default. Live mode emulates touch, not a system mouse; no DeX.
 PenMouse S is an app that allows you to use the S Pen available on certain Galaxy devices to control the phone's on-screen cursor using air gestures.
 
 The app was created thanks to the encouragement of many people from [this Reddit thread](https://www.reddit.com/r/GalaxyS23Ultra/comments/1jbt0bk/i_made_a_simple_game_for_s_pen_and_want_to_show/) after the small success of the [Bird Hunt](https://github.com/jojczak/BirdHunt) game - thanks to everyone for the ideas and feedback!

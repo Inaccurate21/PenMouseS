@@ -3,10 +3,6 @@ package pl.jojczak.penmouses.service
 import android.accessibilityservice.AccessibilityService
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import com.google.firebase.Firebase
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.analytics
-import com.google.firebase.analytics.logEvent
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,12 +10,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import pl.jojczak.penmouses.core.common.notifications.NotificationsManager
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.Event
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
-import pl.jojczak.penmouses.core.common.utils.Analytics
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
 import pl.jojczak.penmouses.mousemode.base.BaseMode
 import pl.jojczak.penmouses.mousemode.mouse.MouseMode
@@ -30,8 +28,9 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MouseService : AccessibilityService() {
 
-    private val serviceScope = CoroutineScope(context = SupervisorJob() + Dispatchers.Default)
+    private val serviceScope = CoroutineScope(context = SupervisorJob() + Dispatchers.Main.immediate)
     private var eventCollectorJob: Job? = null
+    private var modeChangeJob: Job? = null
     private var currentMode: BaseMode? = null
 
     @Inject
@@ -64,18 +63,16 @@ class MouseService : AccessibilityService() {
         }
     }
 
-    private fun stopCurrentStartNew(newMode: ModeStatus) = serviceScope.launch {
-        if (newMode != ModeStatus.Off) {
-            Firebase.analytics.logEvent(Analytics.EVENT_MODE_STARTED) {
-                param(FirebaseAnalytics.Param.ITEM_NAME, newMode.name)
-            }
-        }
-
+    private fun stopCurrentStartNew(newMode: ModeStatus) {
+        modeChangeJob?.cancel()
         stopMode(stopMode = ModeStatus.Loading)
-        delay(timeMillis = DELAY_BETWEEN_MODES)
-        currentMode = getNewMode(newMode = newMode)
-        currentMode?.start()
-        AppToServiceEvent.serviceStatus.tryEmit(value = newMode)
+        modeChangeJob = serviceScope.launch {
+            delay(timeMillis = DELAY_BETWEEN_MODES)
+            currentMode = getNewMode(newMode = newMode)
+            currentMode?.start()
+            coroutineContext.ensureActive()
+            AppToServiceEvent.serviceStatus.tryEmit(value = newMode)
+        }
     }
 
     private fun getNewMode(newMode: ModeStatus) = when (newMode) {
@@ -110,10 +107,13 @@ class MouseService : AccessibilityService() {
     }
 
     private fun stopMode(stopMode: ModeStatus = ModeStatus.Off) {
+        modeChangeJob?.cancel()
         val currentModeName = currentMode?.let { it::class.simpleName } ?: "null"
         Log.d(TAG, "Stopping current mode ($currentModeName)")
-        currentMode?.stop()
+        val mode = currentMode
         currentMode = null
+        mode?.stop()
+        sPenManager.disconnect()
         AppToServiceEvent.serviceStatus.tryEmit(value = stopMode)
     }
 
@@ -125,6 +125,12 @@ class MouseService : AccessibilityService() {
     override fun onInterrupt() {
         Log.e(TAG, "Accessibility service interrupted")
         stopMode()
+    }
+
+    override fun onDestroy() {
+        stopMode()
+        serviceScope.cancel()
+        super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit

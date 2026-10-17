@@ -1,0 +1,5 @@
+<resources>
+    <string name="settings_realtime_drag">Naciśnij i przeciągaj na żywo (testowe)</string>
+    <string name="settings_realtime_drag_info">Naciśnięcie rozpoczyna dotyk; trzymaj, aby przeciągać, puść, aby zwolnić. To emulacja dotyku, nie systemowa mysz. Limit bezpieczeństwa: 30 sekund. Wyłącz, aby wrócić do oryginalnego trybu.</string>
+    <string name="settings_drag_segment_ms">Czas fragmentu gestu (ms): mniej = szybciej, więcej = stabilniej. Domyślnie 16.</string>
+</resources>

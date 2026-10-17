@@ -1,8 +1,6 @@
 package pl.jojczak.penmouses.screen.settings.tab.general
 
-import com.google.firebase.Firebase
-import com.google.firebase.analytics.analytics
-import com.google.firebase.crashlytics.crashlytics
+import pl.jojczak.penmouses.core.common.utils.OptionalTelemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
@@ -28,8 +26,7 @@ internal class SettingsGeneralViewModel @Inject constructor(
             PrefKeys.ANALYTICS_ENABLED -> {
                 (action.value as? Boolean)?.let { enabled ->
                     preferencesManager.put(action.key, action.value)
-                    Firebase.analytics.setAnalyticsCollectionEnabled(enabled)
-                    Firebase.crashlytics.isCrashlyticsCollectionEnabled = enabled
+                    OptionalTelemetry.setEnabled(enabled)
                     updateState { it.copy(analyticsEnabled = enabled) }
                 }
             }

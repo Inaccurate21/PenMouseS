@@ -60,7 +60,8 @@ internal fun SettingsMouseTab(
         onPrefChanged = { key, value -> viewModel.onViewAction(SettingsViewAction.SavePreference(key, value)) },
         onCursorTypeChange = { viewModel.onViewAction(SettingsCursorViewAction.CursorTypeChanged(it)) },
         onCustomCursorFileSelected = { viewModel.onViewAction(SettingsCursorViewAction.CustomCursorFileSelected(it))},
-        onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) }
+        onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
+        onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) }
     )
     // @formatter:on
 }
@@ -73,11 +74,32 @@ private fun SettingsMouseTabContent(
     onPrefChanged: (PrefKey<Float>, Float) -> Unit = { _, _ -> },
     onCursorTypeChange: (CursorType) -> Unit = {},
     onCustomCursorFileSelected: (Uri) -> Unit = {},
-    onSPenSleepEnabledChange: (Boolean) -> Unit = {}
+    onSPenSleepEnabledChange: (Boolean) -> Unit = {},
+    onRealtimeDragChange: (Boolean) -> Unit = {}
 ) = LazyColumn(
     contentPadding = contentPadding,
     modifier = Modifier.fillMaxSize()
 ) {
+    item {
+        Row(modifier = Modifier.padding(pad_m).clip(RoundedCornerShape(radius_m))
+            .clickable { onRealtimeDragChange(!viewState.realtimeDragEnabled) }) {
+            Checkbox(checked = viewState.realtimeDragEnabled, onCheckedChange = onRealtimeDragChange)
+            Column {
+                Text(stringResource(R.string.settings_realtime_drag))
+                Text(stringResource(R.string.settings_realtime_drag_info), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+    if (viewState.realtimeDragEnabled) {
+        settingsSlider(
+            text = R.string.settings_drag_segment_ms,
+            value = viewState.dragSegmentMs,
+            prefKey = PrefKeys.MOUSE_DRAG_SEGMENT_MS,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged,
+        )
+    }
+    horizontalDivider()
     cursorIconComponent(
         cursorType = viewState.cursorType,
         modeStatus = ModeStatus.Mouse,

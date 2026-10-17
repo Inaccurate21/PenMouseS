@@ -1,18 +1,25 @@
 plugins {
     alias(libs.plugins.module.android.application)
-    alias(libs.plugins.firebase.crashlytics)
+    alias(libs.plugins.firebase.crashlytics) apply false
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.google.services)
+    alias(libs.plugins.google.services) apply false
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.plugin)
     alias(libs.plugins.ksp)
+}
+
+// A fork must build without the upstream maintainer's Firebase configuration or secrets.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 android {
     namespace = "pl.jojczak.penmouses"
 
     defaultConfig {
-        applicationId = "pl.jojczak.penmouses"
+        applicationId = "pl.inaccurate21.penmouses.live"
+        versionNameSuffix = "-live.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

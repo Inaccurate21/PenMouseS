@@ -29,7 +29,9 @@ internal class SettingsMouseViewModel @Inject constructor(
             cursorHideDelay = preferencesManager.get(PrefKeys.MOUSE_CURSOR_HIDE_DELAY),
             sPenSleepEnabled = preferencesManager.get(PrefKeys.MOUSE_SLEEP_ENABLED),
             cursorSize = preferencesManager.get(PrefKeys.MOUSE_CURSOR_SIZE),
-            cursorAlpha = preferencesManager.get(PrefKeys.MOUSE_CURSOR_ALPHA)
+            cursorAlpha = preferencesManager.get(PrefKeys.MOUSE_CURSOR_ALPHA),
+            realtimeDragEnabled = preferencesManager.get(PrefKeys.MOUSE_REALTIME_DRAG),
+            dragSegmentMs = preferencesManager.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS),
         )
     }
 
@@ -40,6 +42,11 @@ internal class SettingsMouseViewModel @Inject constructor(
         is SettingsCursorViewAction.CursorTypeChanged -> onCursorTypeChange(action.cursorType)
         is SettingsCursorViewAction.CustomCursorFileSelected -> loadCustomCursorImage(action.uri)
         is SettingsMouseViewAction.SPenSleepEnabled -> onSPenSleepEnabledChange(action.enabled)
+        is SettingsMouseViewAction.RealtimeDragEnabled -> {
+            updateState { it.copy(realtimeDragEnabled = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_REALTIME_DRAG, action.enabled)
+            tryToPingService()
+        }
         else -> {}
     }
 
@@ -59,6 +66,8 @@ internal class SettingsMouseViewModel @Inject constructor(
         PrefKeys.MOUSE_CURSOR_ALPHA -> {
             updateState { it.copy(cursorAlpha = action.value as Float) }
         }
+
+        PrefKeys.MOUSE_DRAG_SEGMENT_MS -> updateState { it.copy(dragSegmentMs = action.value as Float) }
 
         else -> {}
     }
