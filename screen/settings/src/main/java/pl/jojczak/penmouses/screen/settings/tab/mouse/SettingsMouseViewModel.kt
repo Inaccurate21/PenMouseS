@@ -26,6 +26,7 @@ internal class SettingsMouseViewModel @Inject constructor(
         SettingsMouseState(
             cursorType = preferencesManager.get(PrefKeys.MOUSE_CURSOR_TYPE),
             sPenSensitivity = preferencesManager.get(PrefKeys.MOUSE_SENSITIVITY),
+            mouseAcceleration = preferencesManager.get(PrefKeys.MOUSE_ACCELERATION),
             cursorHideDelay = preferencesManager.get(PrefKeys.MOUSE_CURSOR_HIDE_DELAY),
             sPenSleepEnabled = preferencesManager.get(PrefKeys.MOUSE_SLEEP_ENABLED),
             cursorSize = preferencesManager.get(PrefKeys.MOUSE_CURSOR_SIZE),
@@ -51,6 +52,8 @@ internal class SettingsMouseViewModel @Inject constructor(
     }
 
     override fun updatePreference(action: SettingsViewAction.UpdatePreference<*>) = when(action.key) {
+        PrefKeys.MOUSE_ACCELERATION -> updateState { it.copy(mouseAcceleration = action.value as Float) }
+
         PrefKeys.MOUSE_SENSITIVITY -> {
             updateState { it.copy(sPenSensitivity = action.value as Float) }
         }
