@@ -2,6 +2,9 @@ package pl.jojczak.penmouses.mousemode.mouse
 
 import android.content.Context
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
+import android.database.Cursor
 import android.graphics.drawable.GradientDrawable
 import android.provider.Settings
 import android.view.Gravity
@@ -22,6 +25,8 @@ internal class SPenBatteryOverlay(
     private val preferences: PreferencesManager,
 ) {
     private val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val handler = Handler(Looper.getMainLooper())
+    private val refreshTask = Runnable { if (attached) refresh() }
     private val label = TextView(context)
     private var attached = false
     private var unlocked = false
@@ -71,6 +76,7 @@ internal class SPenBatteryOverlay(
     }
 
     fun refresh() {
+        handler.removeCallbacks(refreshTask)
         if (!preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY)) {
             hide()
             return
@@ -114,6 +120,7 @@ internal class SPenBatteryOverlay(
             }
             applyLayout()
         }
+        if (attached) handler.postDelayed(refreshTask, 30_000L)
     }
 
     private fun applyLayout() {
@@ -123,6 +130,7 @@ internal class SPenBatteryOverlay(
     }
 
     fun hide() {
+        handler.removeCallbacks(refreshTask)
         if (!attached) return
         try { manager.removeView(label) } catch (_: IllegalArgumentException) { }
         attached = false
@@ -135,11 +143,29 @@ internal class SPenBatteryOverlay(
      * New Samsung firmware might not expose them to third-party apps.
      */
     private fun readBatteryLevel(): Int? {
-        val keys = arrayOf("spen_battery_level", "spen_battery_percentage")
+        val keys = arrayOf("spen_battery_level", "spen_battery_percentage", "spen_remote_battery_level")
         for (key in keys) {
             val level = try { Settings.System.getInt(context.contentResolver, key, -1) } catch (_: Exception) { -1 }
             if (level in 0..100) return level
         }
-        return null
+
+        // Search visible system settings for Samsung's firmware-dependent key naming.
+        // Never read/display the phone battery. Unknown and inaccessible remain unknown.
+        return try {
+            context.contentResolver.query(Settings.System.CONTENT_URI, arrayOf("name", "value"), null, null, null)?.use { cursor ->
+                var result: Int? = null
+                val keyColumn = cursor.getColumnIndex("name")
+                val valueColumn = cursor.getColumnIndex("value")
+                if (keyColumn < 0 || valueColumn < 0) return@use null
+                while (cursor.moveToNext()) {
+                    val key = cursor.getString(keyColumn)?.lowercase() ?: continue
+                    if (!(key.contains("spen") || key.contains("s_pen"))) continue
+                    if (!key.contains("battery")) continue
+                    val level = cursor.getString(valueColumn)?.toIntOrNull()
+                    if (level != null && level in 0..100) { result = level; break }
+                }
+                result
+            }
+        } catch (_: Exception) { null }
     }
 }
