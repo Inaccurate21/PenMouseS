@@ -53,6 +53,7 @@ class MouseMode(
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
     private var realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
     private var dragController: RealtimeDragController? = null
+    private val sPenBatteryOverlay = SPenBatteryOverlay(context, preferences)
     private var legacyButtonDown = false
     private var ignoreUntilRelease = false
     private var motionX: Float? = null
@@ -99,6 +100,7 @@ class MouseMode(
 
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
         if (realtimeEnabled) dragController = newDragController()
+        sPenBatteryOverlay.refresh()
         ContextCompat.registerReceiver(context, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
         receiverRegistered = true
         sPenManager.onConnectionLost = { stopService() }
@@ -128,6 +130,7 @@ class MouseMode(
         ++dragGeneration
         dragController?.close()
         dragController = null
+        sPenBatteryOverlay.hide()
         legacyButtonDown = false
         airMotionAcceleration.reset()
         sPenManager.onConnectionLost = null
@@ -302,6 +305,7 @@ class MouseMode(
         ignoreUntilRelease = sPenManager.isSPenButtonDown
         realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
         dragController = if (realtimeEnabled) newDragController() else null
+        sPenBatteryOverlay.refresh()
         prefHideDelay = cursorPreferences.getHideDelay()
         prefSensitivity = cursorPreferences.getSensitivity()
         prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
