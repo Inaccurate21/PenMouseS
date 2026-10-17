@@ -70,6 +70,12 @@ class PreferencesManager(
         prefs.edit {
             put(PrefKeys.MOUSE_SENSITIVITY, PrefKeys.MOUSE_SENSITIVITY.default)
             put(PrefKeys.MOUSE_ACCELERATION, PrefKeys.MOUSE_ACCELERATION.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY, PrefKeys.MOUSE_BATTERY_OVERLAY.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED, PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA, PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_X, PrefKeys.MOUSE_BATTERY_OVERLAY_X.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_Y, PrefKeys.MOUSE_BATTERY_OVERLAY_Y.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR, PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR.default)
             put(PrefKeys.MOUSE_CURSOR_SIZE, PrefKeys.MOUSE_CURSOR_SIZE.default)
             put(PrefKeys.MOUSE_CURSOR_TYPE, PrefKeys.MOUSE_CURSOR_TYPE.default)
             put(PrefKeys.MOUSE_CURSOR_HIDE_DELAY, PrefKeys.MOUSE_CURSOR_HIDE_DELAY.default)
@@ -93,6 +99,12 @@ class PreferencesManager(
 
 object PrefKeys {
     val MOUSE_SENSITIVITY = PrefKey("spen_sensitivity", 50f, 1f, 1f..400f)
+    val MOUSE_BATTERY_OVERLAY = PrefKey("mouse_battery_overlay", false)
+    val MOUSE_BATTERY_OVERLAY_UNLOCKED = PrefKey("mouse_battery_overlay_unlocked", false)
+    val MOUSE_BATTERY_OVERLAY_ALPHA = PrefKey("mouse_battery_overlay_alpha", 0.9f, 0.05f, 0.2f..1f)
+    val MOUSE_BATTERY_OVERLAY_X = PrefKey("mouse_battery_overlay_x", 0.8f, 0.01f, 0f..1f)
+    val MOUSE_BATTERY_OVERLAY_Y = PrefKey("mouse_battery_overlay_y", 0.08f, 0.01f, 0f..1f)
+    val MOUSE_BATTERY_OVERLAY_COLOR = PrefKey("mouse_battery_overlay_color", 0f, 1f, 0f..3f)
     val MOUSE_ACCELERATION = PrefKey("mouse_acceleration", 1.5f, 0.5f, 0f..3f)
     val MOUSE_CURSOR_SIZE = PrefKey("cursor_size", 60f, 1f, 20f..250f)
     val MOUSE_CURSOR_TYPE = PrefKey("cursor_type", CursorType.Light)
