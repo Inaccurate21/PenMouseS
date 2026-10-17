@@ -206,7 +206,7 @@ class RealtimeDragControllerTest {
     }
 
     @Test fun durationIsClampedAndNonFiniteMotionIgnored() {
-        for ((input, expected) in listOf(0L to 8L, 100L to 40L)) {
+        for ((input, expected) in listOf(0L to 1L, 100L to 32L)) {
             val f = Fixture(input)
             assertFalse(f.controller.press(Point(Float.NaN, 0f)))
             f.controller.press(Point(1f, 1f))
