@@ -61,7 +61,9 @@ internal fun SettingsMouseTab(
         onCursorTypeChange = { viewModel.onViewAction(SettingsCursorViewAction.CursorTypeChanged(it)) },
         onCustomCursorFileSelected = { viewModel.onViewAction(SettingsCursorViewAction.CustomCursorFileSelected(it))},
         onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
-        onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) }
+        onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) },
+        onBatteryOverlayEnabled = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayEnabled(it)) },
+        onBatteryOverlayUnlocked = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayUnlocked(it)) }
     )
     // @formatter:on
 }
@@ -75,7 +77,9 @@ private fun SettingsMouseTabContent(
     onCursorTypeChange: (CursorType) -> Unit = {},
     onCustomCursorFileSelected: (Uri) -> Unit = {},
     onSPenSleepEnabledChange: (Boolean) -> Unit = {},
-    onRealtimeDragChange: (Boolean) -> Unit = {}
+    onRealtimeDragChange: (Boolean) -> Unit = {},
+    onBatteryOverlayEnabled: (Boolean) -> Unit = {},
+    onBatteryOverlayUnlocked: (Boolean) -> Unit = {}
 ) = LazyColumn(
     contentPadding = contentPadding,
     modifier = Modifier.fillMaxSize()
@@ -97,6 +101,57 @@ private fun SettingsMouseTabContent(
             prefKey = PrefKeys.MOUSE_DRAG_SEGMENT_MS,
             onPrefChanging = onPrefChanging,
             onPrefChanged = onPrefChanged,
+        )
+    }
+    horizontalDivider()
+    item {
+        Column(modifier = Modifier.padding(pad_m)) {
+            Text(stringResource(R.string.settings_spen_battery_overlay_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_spen_battery_overlay_hint), style = MaterialTheme.typography.bodySmall)
+            Row(modifier = Modifier.clickable { onBatteryOverlayEnabled(!viewState.batteryOverlayEnabled) }) {
+                Checkbox(checked = viewState.batteryOverlayEnabled, onCheckedChange = onBatteryOverlayEnabled)
+                Text(stringResource(R.string.settings_spen_battery_overlay_enable), modifier = Modifier.padding(pad_m))
+            }
+            if (viewState.batteryOverlayEnabled) {
+                Row(modifier = Modifier.clickable { onBatteryOverlayUnlocked(!viewState.batteryOverlayUnlocked) }) {
+                    Checkbox(checked = viewState.batteryOverlayUnlocked, onCheckedChange = onBatteryOverlayUnlocked)
+                    Text(stringResource(R.string.settings_spen_battery_overlay_unlock), modifier = Modifier.padding(pad_m))
+                }
+            }
+        }
+    }
+    if (viewState.batteryOverlayEnabled) {
+        settingsSlider(
+            text = R.string.settings_spen_battery_overlay_alpha,
+            value = viewState.batteryOverlayAlpha,
+            valueDisplay = { "${(it * 100).toInt()}%" },
+            prefKey = PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged
+        )
+        settingsSlider(
+            text = R.string.settings_spen_battery_overlay_x,
+            value = viewState.batteryOverlayX,
+            valueDisplay = { "${(it * 100).toInt()}%" },
+            prefKey = PrefKeys.MOUSE_BATTERY_OVERLAY_X,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged
+        )
+        settingsSlider(
+            text = R.string.settings_spen_battery_overlay_y,
+            value = viewState.batteryOverlayY,
+            valueDisplay = { "${(it * 100).toInt()}%" },
+            prefKey = PrefKeys.MOUSE_BATTERY_OVERLAY_Y,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged
+        )
+        settingsSlider(
+            text = R.string.settings_spen_battery_overlay_color,
+            value = viewState.batteryOverlayColor,
+            valueDisplay = { listOf("Czarny", "Biały", "Niebieski", "Zielony")[it.toInt().coerceIn(0, 3)] },
+            prefKey = PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged
         )
     }
     horizontalDivider()
