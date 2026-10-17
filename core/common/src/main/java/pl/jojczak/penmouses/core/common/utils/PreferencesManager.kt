@@ -69,6 +69,7 @@ class PreferencesManager(
     fun reset() {
         prefs.edit {
             put(PrefKeys.MOUSE_SENSITIVITY, PrefKeys.MOUSE_SENSITIVITY.default)
+            put(PrefKeys.MOUSE_ACCELERATION, PrefKeys.MOUSE_ACCELERATION.default)
             put(PrefKeys.MOUSE_CURSOR_SIZE, PrefKeys.MOUSE_CURSOR_SIZE.default)
             put(PrefKeys.MOUSE_CURSOR_TYPE, PrefKeys.MOUSE_CURSOR_TYPE.default)
             put(PrefKeys.MOUSE_CURSOR_HIDE_DELAY, PrefKeys.MOUSE_CURSOR_HIDE_DELAY.default)
@@ -91,14 +92,15 @@ class PreferencesManager(
 }
 
 object PrefKeys {
-    val MOUSE_SENSITIVITY = PrefKey("spen_sensitivity", 50f, 1f, 1f..100f)
+    val MOUSE_SENSITIVITY = PrefKey("spen_sensitivity", 50f, 1f, 1f..400f)
+    val MOUSE_ACCELERATION = PrefKey("mouse_acceleration", 1.5f, 0.5f, 0f..3f)
     val MOUSE_CURSOR_SIZE = PrefKey("cursor_size", 60f, 1f, 20f..250f)
     val MOUSE_CURSOR_TYPE = PrefKey("cursor_type", CursorType.Light)
     val MOUSE_CURSOR_ALPHA = PrefKey("cursor_alpha", 1f, step = 0.05f, range = 0.05f..1f)
     val MOUSE_CURSOR_HIDE_DELAY = PrefKey("time_to_hide_cursor", 10f, 5f, 5f..305f)
     val MOUSE_SLEEP_ENABLED = PrefKey("spen_sleep_enabled", true)
     val MOUSE_REALTIME_DRAG = PrefKey("mouse_realtime_drag", false)
-    val MOUSE_DRAG_SEGMENT_MS = PrefKey("mouse_drag_segment_ms", 16f, 4f, 8f..40f)
+    val MOUSE_DRAG_SEGMENT_MS = PrefKey("mouse_drag_segment_ms", 8f, 1f, 1f..32f)
     val POINT_CURSOR_TYPE = PrefKey("point_cursor_type", CursorType.Light)
     val POINT_CURSOR_ALPHA = PrefKey("point_cursor_alpha", 1f, step = 0.05f, range = 0.05f..1f)
     val POINT_CURSOR_SIZE = PrefKey("point_cursor_size", 60f, 1f, 20f..250f)
