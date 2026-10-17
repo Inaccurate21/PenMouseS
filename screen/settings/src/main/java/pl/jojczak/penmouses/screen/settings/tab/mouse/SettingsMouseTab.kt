@@ -141,6 +141,17 @@ private fun SettingsMouseTabContent(
     horizontalDivider()
 
     settingsSlider(
+        text = R.string.settings_mouse_acceleration,
+        value = viewState.mouseAcceleration,
+        valueDisplay = { "%.1f".format(it) },
+        prefKey = PrefKeys.MOUSE_ACCELERATION,
+        onPrefChanging = onPrefChanging,
+        onPrefChanged = onPrefChanged
+    )
+
+    horizontalDivider()
+
+    settingsSlider(
         text = R.string.settings_cursor_hide_delay,
         textOnLastValue = R.string.settings_cursor_hide_delay_indefinite,
         value = viewState.cursorHideDelay,
