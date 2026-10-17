@@ -47,6 +47,8 @@ class MouseMode(
     animatorFactory = { view -> MouseAnimator(view) }
 ) {
     private var prefSensitivity = cursorPreferences.getSensitivity()
+    private var prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+    private val airMotionAcceleration = AirMotionAcceleration()
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
     private var realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
@@ -127,6 +129,7 @@ class MouseMode(
         dragController?.close()
         dragController = null
         legacyButtonDown = false
+        airMotionAcceleration.reset()
         sPenManager.onConnectionLost = null
         if (receiverRegistered) {
             context.unregisterReceiver(screenOffReceiver)
@@ -188,8 +191,9 @@ class MouseMode(
         val (screenWidth, screenHeight) = getDisplaySize(getDisplay())
 
         val position = getCursorPos()
-        motionX = ((motionX ?: position.x.toFloat()) + deltaX * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
-        motionY = ((motionY ?: position.y.toFloat()) - deltaY * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
+        val movement = airMotionAcceleration.convert(deltaX, deltaY, timeStamp, prefSensitivity, prefAcceleration)
+        motionX = ((motionX ?: position.x.toFloat()) + movement.dx).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
+        motionY = ((motionY ?: position.y.toFloat()) + movement.dy).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
             x = motionX!!.roundToInt()
             y = motionY!!.roundToInt()
@@ -300,13 +304,14 @@ class MouseMode(
         dragController = if (realtimeEnabled) newDragController() else null
         prefHideDelay = cursorPreferences.getHideDelay()
         prefSensitivity = cursorPreferences.getSensitivity()
+        prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+        airMotionAcceleration.reset()
         prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
         pingCursor()
     }
 
     companion object {
-        private const val S_PEN_SENSITIVITY_MULTIPLIER = 20
         private const val CURSOR_MOVE_THRESHOLD_PX = 50
         private const val SLEEP_DELAY_MS = 60000L // 60s
         private const val SLEEP_DELAY_MS_HIDING_DISABLED = 300000L // 5min
