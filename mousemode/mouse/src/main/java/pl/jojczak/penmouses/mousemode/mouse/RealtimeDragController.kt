@@ -83,7 +83,7 @@ internal class RealtimeDragController(
         val segment = Segment(
             from = end,
             to = target,
-            durationMs = if (!continuing || !pressed) 1L else segmentDurationMs.coerceIn(8L, 40L),
+            durationMs = if (!continuing || !pressed) 1L else segmentDurationMs.coerceIn(1L, 32L),
             continuing = continuing,
             willContinue = pressed,
         )
