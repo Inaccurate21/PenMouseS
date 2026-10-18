@@ -9,7 +9,8 @@ class ButtonHoldRecognizerTest {
     private var holdCount = 0
     private fun create() = ButtonHoldRecognizer({ _, task ->
         scheduled = task
-        { cancelled = true }
+        val cancel: () -> Unit = { cancelled = true }
+        cancel
     }, 450L, { holdCount++ })
 
     @Test fun shortPressProducesOneTap() {
