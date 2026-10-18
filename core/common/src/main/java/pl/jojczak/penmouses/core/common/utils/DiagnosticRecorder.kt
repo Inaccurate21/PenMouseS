@@ -57,7 +57,7 @@ object DiagnosticRecorder {
             appendLine("Settings:")
             currentSettings.forEach { (key,value) -> appendLine("  $key=$value") }
             appendLine("Events (${entries.size} newest, max $MAX_EVENTS; in-memory only):")
-            entries.forEach(::appendLine)
+            entries.forEach { appendLine(it) }
         }
     }
 }
