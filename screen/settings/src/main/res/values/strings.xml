@@ -60,7 +60,7 @@
     <string name="settings_adaptive_drag_info">Android may acknowledge segments much later than their requested length. Optionally increases segment duration up to 24 ms when callbacks are slow. Disable to keep a fixed duration.</string>
     <string name="settings_diagnostics_mark">Mark problem</string>
 
-    <string name="settings_section_gestures">Drag and smoothness</string>
+    <string name="settings_section_gestures">Drag and sensitivity</string>
     <string name="settings_section_axis">Direction calibration</string>
     <string name="settings_section_overlay">S Pen battery overlay</string>
     <string name="settings_section_diagnostics">Diagnostics</string>
@@ -68,4 +68,7 @@
     <string name="settings_overlay_compact">Compact — percentage only</string>
     <string name="settings_overlay_time">Show last battery measurement time</string>
     <string name="settings_overlay_size">Overlay size: %s</string>
+    <string name="settings_button_hold_action">Hold S Pen button: %s</string>
+    <string name="settings_button_hold_threshold">Hold recognition delay: %s</string>
+    <string name="settings_button_hold_explainer">In context-menu/double-click mode a short press sends a left tap and a hold performs the selected action. Context menus use a touchscreen long press, not a native mouse right button. Drag mode preserves existing behavior.</string>
 </resources>
