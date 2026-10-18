@@ -76,6 +76,10 @@ internal class SettingsMouseViewModel @Inject constructor(
             preferencesManager.put(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED, action.enabled)
             DiagnosticRecorder.setEnabled(action.enabled)
         }
+        is SettingsMouseViewAction.CalibrateRightwardMotion -> {
+            AppToServiceEvent.event.tryEmit(AppToServiceEvent.Event.CalibrateRightwardMotion)
+            Unit
+        }
         is SettingsMouseViewAction.RecalibrateMotion -> {
             AppToServiceEvent.event.tryEmit(AppToServiceEvent.Event.RecalibrateMotion)
             Unit
