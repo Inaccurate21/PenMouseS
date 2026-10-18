@@ -39,7 +39,7 @@
     <string name="settings_scroll_experimental_mode">Power saving mode (Experimental!)</string>
     <string name="settings_scroll_experimental_mode_desc">S Pen will activate the gyroscope only after the button is pressed, which significantly saves the S Pen\'s battery but may interrupt the connection. Disable if scrolling suddenly stops working.</string>
     <string name="settings_spen_battery_overlay_title">S Pen status overlay</string>
-    <string name="settings_spen_battery_overlay_hint">Last visible percentage from Settings → S Pen, captured by accessibility after you visit the screen once. The timestamp represents the last observation, not continuous battery telemetry.</string>
+    <string name="settings_spen_battery_overlay_hint">Last visible percentage from Settings → S Pen, captured by accessibility after you visit the screen once. The timestamp represents the last observation, not continuous battery telemetry. An asterisk (*) means the last reading is old and may be inaccurate.</string>
     <string name="settings_spen_battery_overlay_enable">Show overlay</string>
     <string name="settings_spen_battery_overlay_unlock">Unlock overlay drag with finger</string>
     <string name="settings_spen_battery_overlay_alpha">Overlay opacity: %s</string>
