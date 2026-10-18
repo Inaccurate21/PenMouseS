@@ -137,7 +137,9 @@ class MouseService : AccessibilityService() {
         Log.e(TAG, "Accessibility service interrupted")
         val power = getSystemService(android.os.PowerManager::class.java)
         DiagnosticRecorder.record("service", "accessibility interrupted active=${currentMode?.javaClass?.simpleName ?: "none"} interactive=${power?.isInteractive}")
-        stopMode()
+        // Repeated interruptions while idle are advisory. Avoid unnecessary
+        // disconnect/reconnect cycles and keep pending mode start intact.
+        if (currentMode != null) stopMode()
     }
 
     override fun onDestroy() {
