@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
-import android.database.Cursor
 import android.graphics.drawable.GradientDrawable
 import android.provider.Settings
 import android.view.Gravity
@@ -30,6 +29,7 @@ internal class SPenBatteryOverlay(
     private val label = TextView(context)
     private var attached = false
     private var unlocked = false
+    private var dragging = false
     private var anchorX = 0f
     private var anchorY = 0f
     private var anchorScreenX = 0
@@ -51,6 +51,7 @@ internal class SPenBatteryOverlay(
             if (!unlocked) return@setOnTouchListener false
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    dragging = true
                     anchorX = event.rawX
                     anchorY = event.rawY
                     anchorScreenX = layout.x
@@ -65,6 +66,7 @@ internal class SPenBatteryOverlay(
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    dragging = false
                     val metrics = context.resources.displayMetrics
                     preferences.put(PrefKeys.MOUSE_BATTERY_OVERLAY_X, (layout.x.toFloat() / metrics.widthPixels.coerceAtLeast(1)).coerceIn(0f, 1f))
                     preferences.put(PrefKeys.MOUSE_BATTERY_OVERLAY_Y, (layout.y.toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(0f, 1f))
@@ -82,9 +84,22 @@ internal class SPenBatteryOverlay(
             return
         }
 
-        val batteryLevel = readBatteryLevel()
-        label.text = if (batteryLevel != null) "S Pen  ${batteryLevel}%" else "S Pen  —"
-        label.contentDescription = if (batteryLevel != null) "S Pen: ${batteryLevel}%" else "S Pen: poziom baterii niedostępny"
+        val observed = preferences.get(PrefKeys.S_PEN_OBSERVED_LEVEL)
+        val observedAt = preferences.get(PrefKeys.S_PEN_OBSERVED_AT)
+        val age = System.currentTimeMillis() - observedAt
+        val observedValid = observed in 0..100 && observedAt > 0L && age in 0..MAX_OBSERVED_AGE_MS
+        val batteryLevel = if (observedValid) observed else readBatteryLevel()
+        val clock = if (observedValid) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(observedAt)) else null
+        label.text = when {
+            observedValid -> "S Pen  ${batteryLevel}% · ${clock}"
+            batteryLevel != null -> "S Pen  ${batteryLevel}%"
+            else -> "S Pen  —"
+        }
+        label.contentDescription = when {
+            observedValid -> "S Pen ${batteryLevel}%, ostatni odczyt o godzinie ${clock}"
+            batteryLevel != null -> "S Pen ${batteryLevel}%"
+            else -> "S Pen: brak dostępnego odczytu"
+        }
 
         val colors = intArrayOf(0xE51E1E1E.toInt(), 0xF5EEEEEE.toInt(), 0xED2457B8.toInt(), 0xED147D52.toInt())
         val choice = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR).toInt().coerceIn(0, 3)
@@ -112,8 +127,8 @@ internal class SPenBatteryOverlay(
                 attached = false
             }
         } else {
-            // While unlocked, do not override the position being dragged.
-            if (!unlocked) {
+            // Sync slider changes in either lock mode; only resist updates during finger drag.
+            if (!dragging) {
                 val metrics = context.resources.displayMetrics
                 layout.x = (preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X) * metrics.widthPixels).toInt()
                 layout.y = (preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y) * metrics.heightPixels).toInt()
@@ -137,6 +152,8 @@ internal class SPenBatteryOverlay(
     }
 
     private fun dp(value: Int) = (density * value).toInt()
+
+    private companion object { const val MAX_OBSERVED_AGE_MS = 6L * 60L * 60L * 1000L }
 
     /**
      * Diagnostic candidates; verified S Pen-only names, never the phone's battery level.
