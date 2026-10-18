@@ -21,6 +21,7 @@ internal class RealtimeDragController(
         /** Only used when a callback stalls. Must not inject a fresh tap. */
         fun releaseBestEffort()
         fun reset()
+        fun suggestedDurationMs(configuredMs: Long): Long = configuredMs
     }
 
     enum class Result { RELEASED, CLOSED, HOLD_LIMIT, CANCELLED, REJECTED, CALLBACK_TIMEOUT }
@@ -83,7 +84,7 @@ internal class RealtimeDragController(
         val segment = Segment(
             from = end,
             to = target,
-            durationMs = if (!continuing || !pressed) 1L else segmentDurationMs.coerceIn(1L, 32L),
+            durationMs = if (!continuing || !pressed) 1L else backend.suggestedDurationMs(segmentDurationMs.coerceIn(1L, 32L)),
             continuing = continuing,
             willContinue = pressed,
         )
