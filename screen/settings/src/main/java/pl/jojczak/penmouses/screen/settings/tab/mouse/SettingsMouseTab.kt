@@ -80,6 +80,7 @@ internal fun SettingsMouseTab(
         onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
         onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) },
         onRecalibrateMotion = { viewModel.onViewAction(SettingsMouseViewAction.RecalibrateMotion) },
+        onCalibrateRightward = { viewModel.onViewAction(SettingsMouseViewAction.CalibrateRightwardMotion) },
         onDiagnosticsEnabled = { viewModel.onViewAction(SettingsMouseViewAction.DiagnosticsEnabled(it)) },
         onExportDiagnostics = { exportLauncher.launch("PenMouseS-diagnostyka-" + System.currentTimeMillis() + ".txt") },
         onClearDiagnostics = { DiagnosticRecorder.clear() },
@@ -100,6 +101,7 @@ private fun SettingsMouseTabContent(
     onSPenSleepEnabledChange: (Boolean) -> Unit = {},
     onRealtimeDragChange: (Boolean) -> Unit = {},
     onRecalibrateMotion: () -> Unit = {},
+    onCalibrateRightward: () -> Unit = {},
     onDiagnosticsEnabled: (Boolean) -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     onClearDiagnostics: () -> Unit = {},
@@ -133,6 +135,9 @@ private fun SettingsMouseTabContent(
         TextButton(onClick = onRecalibrateMotion) {
             Text(stringResource(R.string.settings_recalibrate_motion))
         }
+    }
+    item {
+        TextButton(onClick = onCalibrateRightward) { Text(stringResource(R.string.settings_calibrate_rightward)) }
     }
     settingsSlider(
         text = R.string.settings_axis_rotation,
