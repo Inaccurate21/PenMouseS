@@ -70,7 +70,10 @@ class MouseMode(
 
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) stopService()
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                DiagnosticRecorder.record("lifecycle", "screen off; stopping mouse")
+                stopService()
+            }
         }
     }
 
@@ -84,6 +87,7 @@ class MouseMode(
             onFinished = { result ->
                 if (generation != dragGeneration || !canStartJobs) return@RealtimeDragController
                 cursorAnimator.releaseCursor()
+                DiagnosticRecorder.record("drag", "ended result=$result")
                 ignoreUntilRelease = sPenManager.isSPenButtonDown
                 hideCursor()
                 if (result != RealtimeDragController.Result.RELEASED &&
@@ -147,7 +151,10 @@ class MouseMode(
         sPenBatteryOverlay.refresh()
         ContextCompat.registerReceiver(context, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
         receiverRegistered = true
-        sPenManager.onConnectionLost = { stopService() }
+        sPenManager.onConnectionLost = {
+            DiagnosticRecorder.record("connection", "S Pen connection lost; stopping mouse")
+            stopService()
+        }
 
         sPenManager.connect(object : ConnectionResultCallback() {
             override fun onSuccess() {
