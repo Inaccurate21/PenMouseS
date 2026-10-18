@@ -10,6 +10,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.TextView
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
 
@@ -28,6 +29,7 @@ internal class SPenBatteryOverlay(
     private val refreshTask = Runnable { if (attached) refresh() }
     private val label = TextView(context)
     private var attached = false
+    private var lastBatteryDiagnosticState: String? = null
     private var unlocked = false
     private var dragging = false
     private var anchorX = 0f
@@ -87,24 +89,39 @@ internal class SPenBatteryOverlay(
         val observed = preferences.get(PrefKeys.S_PEN_OBSERVED_LEVEL)
         val observedAt = preferences.get(PrefKeys.S_PEN_OBSERVED_AT)
         val age = System.currentTimeMillis() - observedAt
-        val observedValid = observed in 0..100 && observedAt > 0L && age in 0..MAX_OBSERVED_AGE_MS
-        val batteryLevel = if (observedValid) observed else readBatteryLevel()
-        val clock = if (observedValid) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(observedAt)) else null
+        val lastKnown = observed in 0..100 && observedAt > 0L && age in 0L..MAX_LAST_KNOWN_AGE_MS
+        val stale = lastKnown && age > FRESH_READING_MS
+        val fallback = if (!lastKnown) readBatteryLevel() else null
+        val batteryLevel = if (lastKnown) observed else fallback
+        val clock = if (lastKnown) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(observedAt)) else null
         val compact = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT)
         val showTime = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME)
+        // Asterisk denotes old data; do not make an 8-hour-old reading appear live.
+        val suffix = if (stale) "*" else ""
         label.text = when {
-            compact -> if (batteryLevel != null) "${batteryLevel}%" else "—"
-            observedValid && showTime -> "S Pen  ${batteryLevel}% · ${clock}"
-            batteryLevel != null -> "S Pen  ${batteryLevel}%"
+            compact -> if (batteryLevel != null) "${batteryLevel}%${suffix}" else "—"
+            batteryLevel != null && lastKnown && showTime -> "S Pen  ${batteryLevel}% · ${clock}${suffix}"
+            batteryLevel != null -> "S Pen  ${batteryLevel}%${suffix}"
             else -> "S Pen  —"
+        }
+        val state = when {
+            !lastKnown && fallback == null -> "missing/expired"
+            stale -> "stale"
+            lastKnown -> "recent"
+            else -> "system_fallback"
+        }
+        if (state != lastBatteryDiagnosticState) {
+            lastBatteryDiagnosticState = state
+            DiagnosticRecorder.record("battery-overlay", "state=$state ageMinutes=${if (lastKnown) age / 60_000L else -1L} value=${batteryLevel ?: -1} display=${label.text}")
         }
         val scale = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE).coerceIn(0.6f, 2f)
         label.textSize = 13f * scale
         label.setPadding(dp((if (compact) 8 else 10) * scale), dp(7 * scale),
             dp((if (compact) 8 else 10) * scale), dp(7 * scale))
         label.contentDescription = when {
-            observedValid -> "S Pen ${batteryLevel}%, ostatni odczyt o godzinie ${clock}"
-            batteryLevel != null -> "S Pen ${batteryLevel}%"
+            stale -> "S Pen: ostatni znany odczyt ${batteryLevel}%, ${age / 60_000L} minut temu. Wynik nieaktualny."
+            lastKnown -> "S Pen ${batteryLevel}%, ostatni odczyt o godzinie ${clock}"
+            batteryLevel != null -> "S Pen ${batteryLevel}%, odczyt systemowy"
             else -> "S Pen: brak dostępnego odczytu"
         }
 
@@ -161,7 +178,10 @@ internal class SPenBatteryOverlay(
     private fun dp(value: Int) = (density * value).toInt()
     private fun dp(value: Float) = (density * value).toInt()
 
-    private companion object { const val MAX_OBSERVED_AGE_MS = 6L * 60L * 60L * 1000L }
+    private companion object {
+        const val FRESH_READING_MS = 30L * 60L * 1000L
+        const val MAX_LAST_KNOWN_AGE_MS = 48L * 60L * 60L * 1000L
+    }
 
     /**
      * Diagnostic candidates; verified S Pen-only names, never the phone's battery level.
