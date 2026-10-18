@@ -3,12 +3,11 @@ name: Build Live test APK
 on:
   push:
     branches: [realtime-drag]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
+# Never expose the signing secret to third-party pull requests.
 concurrency:
-  group: live-${{ github.head_ref || github.ref_name }}
+  group: stable-live-${{ github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -32,17 +31,55 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Install Android platform and build tools
         run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
-      - name: Test gesture state machine and build standalone debug APK
+
+      - name: Restore permanent signing key from encrypted repository backup
+        env:
+          LIVE_SIGNING_SECRET: ${{ secrets.LIVE_SIGNING_SECRET }}
+        shell: bash
+        run: |
+          if [ -z "$LIVE_SIGNING_SECRET" ]; then
+            echo "::error::One-time setup required. Repository Settings → Secrets and variables → Actions: add LIVE_SIGNING_SECRET. Never publish unsigned/ephemeral debug builds as updates."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -a -A \
+            -in app/signing/live-debug-keystore.enc.b64 \
+            -out app/signing/live-debug-keystore.p12 \
+            -pass env:LIVE_SIGNING_SECRET
+          chmod 600 app/signing/live-debug-keystore.p12
+          keytool -list -storetype PKCS12 \
+            -keystore app/signing/live-debug-keystore.p12 \
+            -alias penmouse-live -storepass "$LIVE_SIGNING_SECRET" >/dev/null
+
+      - name: Test and build permanently signed APK
+        env:
+          LIVE_SIGNING_SECRET: ${{ secrets.LIVE_SIGNING_SECRET }}
         run: bash ./gradlew :mousemode:mouse:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --no-daemon
+
+      - name: Verify signature matches the pinned update certificate
+        shell: bash
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          "$APKSIGNER" verify --print-certs "$APK" | grep -i -F "dd4c7dc6d94e293a64d007d93dd139ad3d062cb840cef3da68de75aa87b7ab2e"
+          echo "APK identity and stable signing certificate verified."
+
       - uses: actions/upload-artifact@v4
         with:
-          name: PenMouseS-Live-test-APK
+          name: PenMouseS-Live-STABLE-SIGNED-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gesture-test-results
-          path: mousemode/mouse/build/reports/tests/testDebugUnitTest/
+          path: |
+            mousemode/mouse/build/reports/tests/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
+
+      - name: Erase decrypted signing key from runner
+        if: always()
+        run: rm -f app/signing/live-debug-keystore.p12
