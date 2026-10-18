@@ -9,6 +9,7 @@ internal data class SettingsMouseState(
     val sPenSensitivity: Float = 0.0f,
     val mouseAcceleration: Float = 1.5f,
     val axisRotation: Float = 0f,
+    val diagnosticsEnabled: Boolean = false,
     val cursorHideDelay: Float = 0f,
     val sPenSleepEnabled: Boolean = false,
     val cursorSize: Float = 0f,
@@ -25,6 +26,7 @@ internal data class SettingsMouseState(
 
 internal sealed class SettingsMouseViewAction : SettingsCursorViewAction() {
     data class SPenSleepEnabled(val enabled: Boolean) : SettingsMouseViewAction()
+    data class DiagnosticsEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data object RecalibrateMotion : SettingsMouseViewAction()
     data class BatteryOverlayEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data class BatteryOverlayUnlocked(val unlocked: Boolean) : SettingsMouseViewAction()
