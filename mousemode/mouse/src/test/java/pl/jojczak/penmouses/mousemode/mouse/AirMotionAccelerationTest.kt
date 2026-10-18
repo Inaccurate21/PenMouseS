@@ -37,6 +37,22 @@ class AirMotionAccelerationTest {
         assertEquals(20f, slow.dx, 0.001f)
     }
 
+    @Test fun rotateRightCompensatesSwappedAxes() {
+        val engine = AirMotionAcceleration()
+        val original = engine.convert(0.01f, 0f, frameNs, 100f, 0f, 0)
+        engine.reset()
+        val rotated = engine.convert(0.01f, 0f, frameNs, 100f, 0f, 90)
+        assertEquals(0f, rotated.dx, 0.001f)
+        assertEquals(original.dx, rotated.dy, 0.001f)
+    }
+
+    @Test fun discardsOldSamples() {
+        val engine = AirMotionAcceleration()
+        engine.convert(0.01f, 0f, 2 * frameNs, 100f, 0f)
+        assertEquals(0f, engine.convert(0.1f, 0f, frameNs, 100f, 0f).dx, 0f)
+        assertTrue(engine.convert(0.01f, 0f, 3 * frameNs, 100f, 0f).dx > 0f)
+    }
+
     @Test fun badInputDoesNotPoisonStateOrProduceNaN() {
         val engine = AirMotionAcceleration()
         assertEquals(0f, engine.convert(Float.NaN, 0f, frameNs, 100f, 2f).dx, 0f)
