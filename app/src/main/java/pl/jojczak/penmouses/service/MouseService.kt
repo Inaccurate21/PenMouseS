@@ -35,6 +35,7 @@ class MouseService : AccessibilityService() {
     private var modeChangeJob: Job? = null
     private var currentMode: BaseMode? = null
     private var lastBatteryCaptureMs = 0L
+    private val batteryCandidateGuard = SamsungPenBatteryCandidateGuard()
 
     @Inject
     lateinit var preferences: PreferencesManager
@@ -173,7 +174,9 @@ class MouseService : AccessibilityService() {
         lastBatteryCaptureMs = now
         DiagnosticRecorder.record("battery", "eventOnPenSettings package=$pkg type=${event.eventType}")
         val level = SamsungPenBatteryCapture.extract(rootInActiveWindow, allowHeadingOnly = pkg == "com.samsung.android.service.aircommand") ?: return
-        DiagnosticRecorder.record("battery", "capturedLevel=$level source=visibleSamsungSpenSettings")
+        val accepted = batteryCandidateGuard.observe(level, System.currentTimeMillis())
+        DiagnosticRecorder.record("battery", "candidate=$level verified=$accepted source=visibleSamsungSpenSettings")
+        if (!accepted) return
         if (level != preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL)
             || System.currentTimeMillis() - preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_AT) > 60_000L) {
             preferences.put(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL, level)
