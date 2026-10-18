@@ -49,7 +49,7 @@
     <string name="settings_axis_rotation">Motion axis correction: %s</string>
     <string name="settings_recalibrate_motion">Restart S Pen motion sensor listener</string>
     <string name="settings_diagnostics_title">S Pen diagnostics</string>
-    <string name="settings_diagnostics_info">Opt-in recording of motion, button events, gesture times and S Pen battery parser metadata. Max 600 events in memory. Enable, reproduce the issue, then export a report.</string>
+    <string name="settings_diagnostics_info">Opt-in recording of motion, button events, gesture times and S Pen battery parser metadata. Max 2400 events in memory. Enable, reproduce the issue, then export a report.</string>
     <string name="settings_diagnostics_enable">Enable recording</string>
     <string name="settings_diagnostics_export">Export TXT report</string>
     <string name="settings_diagnostics_clear">Clear data</string>
@@ -58,4 +58,5 @@
     <string name="settings_calibrate_rightward">Calibrate direction — move S Pen RIGHT for 3 seconds after tapping</string>
     <string name="settings_adaptive_drag">Adaptive gesture segments (experimental)</string>
     <string name="settings_adaptive_drag_info">Android may acknowledge segments much later than their requested length. Optionally increases segment duration up to 24 ms when callbacks are slow. Disable to keep a fixed duration.</string>
+    <string name="settings_diagnostics_mark">Mark problem</string>
 </resources>
