@@ -32,6 +32,7 @@ class MouseService : AccessibilityService() {
     private var eventCollectorJob: Job? = null
     private var modeChangeJob: Job? = null
     private var currentMode: BaseMode? = null
+    private var lastBatteryCaptureMs = 0L
 
     @Inject
     lateinit var preferences: PreferencesManager
@@ -60,6 +61,7 @@ class MouseService : AccessibilityService() {
             is Event.Start -> stopCurrentStartNew(newMode = event.mode)
             is Event.Stop -> stopMode()
             is Event.PreferencesUpdated -> currentMode?.preferencesUpdated()
+            is Event.RecalibrateMotion -> (currentMode as? MouseMode)?.recalibrateMotion()
         }
     }
 
@@ -133,7 +135,21 @@ class MouseService : AccessibilityService() {
         super.onDestroy()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null || !preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.MOUSE_BATTERY_OVERLAY)) return
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg != "com.android.settings" && pkg != "com.samsung.android.service.aircommand") return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastBatteryCaptureMs < 800L) return
+        lastBatteryCaptureMs = now
+        val level = SamsungPenBatteryCapture.extract(rootInActiveWindow) ?: return
+        if (level != preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL)
+            || System.currentTimeMillis() - preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_AT) > 60_000L) {
+            preferences.put(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL, level)
+            preferences.put(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_AT, System.currentTimeMillis())
+            (currentMode as? MouseMode)?.refreshBatteryStatus()
+        }
+    }
 
     companion object {
         private const val TAG = "MouseService"
