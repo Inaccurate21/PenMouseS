@@ -16,6 +16,15 @@ class SamsungPenBatteryCaptureTest {
         assertNull(SamsungPenBatteryCapture.extractFromTexts(listOf("Rysik S Pen", "50%")))
     }
 
+    @Test fun airCommandCanReadHeaderWhenSecondaryLabelsAreUnavailable() {
+        assertEquals(100, SamsungPenBatteryCapture.extractFromTexts(
+            listOf("Rysik S Pen", "100%"), allowHeadingOnly = true
+        ))
+        assertNull(SamsungPenBatteryCapture.extractFromTexts(
+            listOf("Rysik S Pen", "100%", "85%"), allowHeadingOnly = true
+        ))
+    }
+
     @Test fun neverGuessesWhenScreenContainsMultiplePercentages() {
         assertNull(SamsungPenBatteryCapture.extractFromTexts(
             listOf("Rysik S Pen", "Wyjęto", "100%", "83%")
