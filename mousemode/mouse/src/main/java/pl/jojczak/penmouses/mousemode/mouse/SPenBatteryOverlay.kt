@@ -90,11 +90,18 @@ internal class SPenBatteryOverlay(
         val observedValid = observed in 0..100 && observedAt > 0L && age in 0..MAX_OBSERVED_AGE_MS
         val batteryLevel = if (observedValid) observed else readBatteryLevel()
         val clock = if (observedValid) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(observedAt)) else null
+        val compact = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT)
+        val showTime = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME)
         label.text = when {
-            observedValid -> "S Pen  ${batteryLevel}% · ${clock}"
+            compact -> if (batteryLevel != null) "${batteryLevel}%" else "—"
+            observedValid && showTime -> "S Pen  ${batteryLevel}% · ${clock}"
             batteryLevel != null -> "S Pen  ${batteryLevel}%"
             else -> "S Pen  —"
         }
+        val scale = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE).coerceIn(0.6f, 2f)
+        label.textSize = 13f * scale
+        label.setPadding(dp((if (compact) 8 else 10) * scale), dp(7 * scale),
+            dp((if (compact) 8 else 10) * scale), dp(7 * scale))
         label.contentDescription = when {
             observedValid -> "S Pen ${batteryLevel}%, ostatni odczyt o godzinie ${clock}"
             batteryLevel != null -> "S Pen ${batteryLevel}%"
@@ -105,7 +112,7 @@ internal class SPenBatteryOverlay(
         val choice = preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR).toInt().coerceIn(0, 3)
         val background = GradientDrawable().apply {
             setColor(colors[choice])
-            cornerRadius = dp(14).toFloat()
+            cornerRadius = dp(14 * scale).toFloat()
         }
         label.background = background
         label.setTextColor(if (choice == 1) Color.BLACK else Color.WHITE)
@@ -152,6 +159,7 @@ internal class SPenBatteryOverlay(
     }
 
     private fun dp(value: Int) = (density * value).toInt()
+    private fun dp(value: Float) = (density * value).toInt()
 
     private companion object { const val MAX_OBSERVED_AGE_MS = 6L * 60L * 60L * 1000L }
 
