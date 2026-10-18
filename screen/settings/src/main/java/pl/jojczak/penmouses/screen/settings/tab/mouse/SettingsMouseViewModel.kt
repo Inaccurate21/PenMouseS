@@ -27,10 +27,12 @@ internal class SettingsMouseViewModel @Inject constructor(
 ) {
     private val sharedPreferences = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
     private val positionListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PrefKeys.MOUSE_BATTERY_OVERLAY_X.name || key == PrefKeys.MOUSE_BATTERY_OVERLAY_Y.name) {
+        if (key == PrefKeys.MOUSE_BATTERY_OVERLAY_X.name || key == PrefKeys.MOUSE_BATTERY_OVERLAY_Y.name ||
+            key == PrefKeys.MOUSE_AXIS_ROTATION.name) {
             updateState { it.copy(
                 batteryOverlayX = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
                 batteryOverlayY = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
+                axisRotation = preferencesManager.get(PrefKeys.MOUSE_AXIS_ROTATION),
             ) }
         }
     }
