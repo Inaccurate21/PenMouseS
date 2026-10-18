@@ -162,10 +162,10 @@ class MouseMode(
             if (rotation == null) {
                 Toast.makeText(context, "Kalibracja niepewna — powtórz wyraźniejszy ruch", Toast.LENGTH_LONG).show()
             } else {
-                preferences.put(PrefKeys.MOUSE_AXIS_ROTATION, rotation.toFloat())
-                prefRotation = rotation
-                airMotionAcceleration.reset()
-                Toast.makeText(context, "Korekta osi: ${rotation}°", Toast.LENGTH_SHORT).show()
+                // One guided movement alone is not enough to safely apply a correction.
+                // Keep the existing orientation and provide a suggestion for manual testing.
+                DiagnosticRecorder.record("calibration", "suggestedAxis=${rotation} currentAxis=${prefRotation} autoApply=false")
+                Toast.makeText(context, "Test wskazuje ${rotation}°. Nie zmieniono osi — ustaw ją ręcznie, jeśli chcesz.", Toast.LENGTH_LONG).show()
             }
         }
         finishCalibration = task
