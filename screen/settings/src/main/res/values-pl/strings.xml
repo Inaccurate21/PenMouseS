@@ -25,7 +25,7 @@
     <string name="settings_adaptive_drag_info">Android wykonuje fragmenty wolniej niż nastawa w ms. Opcjonalnie wydłuża fragmenty do maks. 24 ms, gdy potwierdzenia są opóźnione. Można wyłączyć, aby zachować stały czas.</string>
     <string name="settings_diagnostics_mark">Oznacz błąd</string>
 
-    <string name="settings_section_gestures">Przeciąganie i płynność</string>
+    <string name="settings_section_gestures">Przeciąganie i czułość</string>
     <string name="settings_section_axis">Kalibracja kierunków</string>
     <string name="settings_section_overlay">Nakładka baterii S Pena</string>
     <string name="settings_section_diagnostics">Diagnostyka</string>
@@ -33,4 +33,7 @@
     <string name="settings_overlay_compact">Minimalistycznie — tylko procent baterii</string>
     <string name="settings_overlay_time">Pokazuj godzinę ostatniego pomiaru</string>
     <string name="settings_overlay_size">Wielkość nakładki: %s</string>
+    <string name="settings_button_hold_action">Przytrzymanie przycisku: %s</string>
+    <string name="settings_button_hold_threshold">Czas rozpoznania przytrzymania: %s</string>
+    <string name="settings_button_hold_explainer">W trybie menu/dwukliku krótkie naciśnięcie wykonuje lewy klik, a przytrzymanie — wybraną akcję. Menu kontekstowe korzysta z długiego dotknięcia Androida; nie jest natywnym prawym przyciskiem myszy. Tryb przeciągania zachowuje dotychczasowe działanie.</string>
 </resources>
