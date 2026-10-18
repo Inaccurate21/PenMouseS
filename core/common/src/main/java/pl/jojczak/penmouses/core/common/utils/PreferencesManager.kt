@@ -76,6 +76,8 @@ class PreferencesManager(
         prefs.edit {
             put(PrefKeys.MOUSE_SENSITIVITY, PrefKeys.MOUSE_SENSITIVITY.default)
             put(PrefKeys.MOUSE_ACCELERATION, PrefKeys.MOUSE_ACCELERATION.default)
+            put(PrefKeys.MOUSE_HOLD_ACTION, PrefKeys.MOUSE_HOLD_ACTION.default)
+            put(PrefKeys.MOUSE_HOLD_THRESHOLD_MS, PrefKeys.MOUSE_HOLD_THRESHOLD_MS.default)
             put(PrefKeys.MOUSE_AXIS_ROTATION, PrefKeys.MOUSE_AXIS_ROTATION.default)
             put(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED, PrefKeys.MOUSE_DIAGNOSTICS_ENABLED.default)
             put(PrefKeys.S_PEN_OBSERVED_LEVEL, PrefKeys.S_PEN_OBSERVED_LEVEL.default)
@@ -126,6 +128,8 @@ object PrefKeys {
     val MOUSE_AXIS_ROTATION = PrefKey("mouse_axis_rotation", 0f, 90f, 0f..270f)
     val S_PEN_OBSERVED_LEVEL = PrefKey("spen_observed_battery_percent", -1)
     val S_PEN_OBSERVED_AT = PrefKey("spen_observed_battery_timestamp_ms", 0L)
+    val MOUSE_HOLD_ACTION = PrefKey("mouse_hold_action", 0f, 1f, 0f..2f)
+    val MOUSE_HOLD_THRESHOLD_MS = PrefKey("mouse_hold_threshold_ms", 450f, 50f, 250f..900f)
     val MOUSE_ACCELERATION = PrefKey("mouse_acceleration", 1.5f, 0.5f, 0f..3f)
     val MOUSE_CURSOR_SIZE = PrefKey("cursor_size", 60f, 1f, 20f..250f)
     val MOUSE_CURSOR_TYPE = PrefKey("cursor_type", CursorType.Light)
