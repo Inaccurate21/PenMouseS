@@ -11,10 +11,14 @@ import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 
 internal class AndroidDragBackend(
     private val dispatchGesture: (GestureDescription, GestureResultCallback?, Handler?) -> Boolean,
+    adaptivePacing: Boolean = false,
 ) : RealtimeDragController.Backend {
     // Not the mode handler: graceful release must still work after BaseMode.stop().
     val handler = Handler(Looper.getMainLooper())
     private var previous: StrokeDescription? = null
+    private val pacing = AdaptiveDragTiming(adaptivePacing)
+
+    override fun suggestedDurationMs(configuredMs: Long): Long = pacing.choose(configuredMs)
     private var end = RealtimeDragController.Point(0f, 0f)
 
     fun schedule(delayMs: Long, task: () -> Unit): () -> Unit {
@@ -38,6 +42,7 @@ internal class AndroidDragBackend(
             GestureDescription.Builder().addStroke(stroke).build(),
             object : GestureResultCallback() {
                 override fun onCompleted(gestureDescription: GestureDescription) {
+                    pacing.observe(segment.durationMs, SystemClock.uptimeMillis() - started)
                     DiagnosticRecorder.record("gesture", "completed requestedMs=${segment.durationMs} elapsedMs=${SystemClock.uptimeMillis() - started} continuing=${segment.continuing}")
                     completed(true)
                 }
