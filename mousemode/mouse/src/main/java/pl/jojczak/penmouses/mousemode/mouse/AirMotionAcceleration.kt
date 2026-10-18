@@ -22,10 +22,13 @@ internal class AirMotionAcceleration {
         timestampNs: Long,
         sensitivity: Float,
         acceleration: Float,
+        rotationDegrees: Int = 0,
     ): Pixels {
         if (!deltaX.isFinite() || !deltaY.isFinite()) return Pixels(0f, 0f)
 
         val previous = previousTimestampNs
+        // Ignore stale out-of-order BLE samples rather than replaying old motion.
+        if (previous != null && timestampNs > 0L && timestampNs <= previous) return Pixels(0f, 0f)
         val elapsedNs = if (previous != null && timestampNs > previous) {
             (timestampNs - previous).coerceIn(MIN_INTERVAL_NS, MAX_INTERVAL_NS)
         } else {
@@ -38,7 +41,14 @@ internal class AirMotionAcceleration {
         val proportion = ((speed - ACCEL_START) / (ACCEL_FULL - ACCEL_START)).coerceIn(0f, 1f)
         val extraBoost = acceleration.coerceIn(0f, 3f) * proportion * proportion
         val pixelsPerUnit = BASE_PIXELS_PER_UNIT * sensitivity.coerceIn(1f, 400f) * (1f + extraBoost)
-        return Pixels(deltaX * pixelsPerUnit, -deltaY * pixelsPerUnit)
+        val x = deltaX * pixelsPerUnit
+        val y = -deltaY * pixelsPerUnit
+        return when (rotationDegrees) {
+            90 -> Pixels(-y, x)
+            180 -> Pixels(-x, -y)
+            270 -> Pixels(y, -x)
+            else -> Pixels(x, y)
+        }
     }
 
     private companion object {
