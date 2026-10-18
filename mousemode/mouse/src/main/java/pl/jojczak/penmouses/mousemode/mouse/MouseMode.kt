@@ -28,6 +28,7 @@ import pl.jojczak.penmouses.mousemode.basecursor.CursorMode
 import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.math.roundToInt
+import kotlin.math.hypot
 import pl.jojczak.penmouses.core.ui.R as coreR
 
 class MouseMode(
@@ -102,7 +103,8 @@ class MouseMode(
         schedule = { duration, action ->
             val task = Runnable { action() }
             mainHandler.postDelayed(task, duration)
-            { mainHandler.removeCallbacks(task) }
+            val cancel: () -> Unit = { mainHandler.removeCallbacks(task) }
+            cancel
         },
         thresholdMs = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS).toLong(),
         onHold = {
@@ -333,8 +335,13 @@ class MouseMode(
             lastDiagnosticMotionMs = SystemClock.uptimeMillis()
             DiagnosticRecorder.record("motion", "deltaX=$deltaX deltaY=$deltaY timestamp=$timeStamp pxX=${movement.dx} pxY=${movement.dy} axis=$prefRotation displayRotation=${getDisplay().rotation}")
         }
-        motionX = ((motionX ?: position.x.toFloat()) + movement.dx).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
-        motionY = ((motionY ?: position.y.toFloat()) + movement.dy).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
+        val distancePx = hypot(movement.dx, movement.dy)
+        val scale = if (distancePx > MAX_PER_SAMPLE_PIXELS) MAX_PER_SAMPLE_PIXELS / distancePx else 1f
+        if (scale < 1f) {
+            DiagnosticRecorder.record("motion-anomaly", "bounded rawDistancePx=$distancePx factor=$scale dx=${movement.dx} dy=${movement.dy}")
+        }
+        motionX = ((motionX ?: position.x.toFloat()) + movement.dx * scale).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
+        motionY = ((motionY ?: position.y.toFloat()) + movement.dy * scale).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
             x = motionX!!.roundToInt()
             y = motionY!!.roundToInt()
@@ -460,6 +467,7 @@ class MouseMode(
 
     companion object {
         private const val CURSOR_MOVE_THRESHOLD_PX = 50
+        private const val MAX_PER_SAMPLE_PIXELS = 850f
         private const val SLEEP_DELAY_MS = 60000L // 60s
         private const val SLEEP_DELAY_MS_HIDING_DISABLED = 300000L // 5min
     }
