@@ -48,4 +48,11 @@
     <string name="settings_spen_battery_overlay_color">Overlay color: %s</string>
     <string name="settings_axis_rotation">Motion axis correction: %s</string>
     <string name="settings_recalibrate_motion">Restart S Pen motion sensor listener</string>
+    <string name="settings_diagnostics_title">S Pen diagnostics</string>
+    <string name="settings_diagnostics_info">Opt-in recording of motion, button events, gesture times and S Pen battery parser metadata. Max 600 events in memory. Enable, reproduce the issue, then export a report.</string>
+    <string name="settings_diagnostics_enable">Enable recording</string>
+    <string name="settings_diagnostics_export">Export TXT report</string>
+    <string name="settings_diagnostics_clear">Clear data</string>
+    <string name="settings_diagnostics_saved">Report saved</string>
+    <string name="settings_diagnostics_export_failed">Could not save report</string>
 </resources>
