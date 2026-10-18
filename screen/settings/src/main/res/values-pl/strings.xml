@@ -21,4 +21,6 @@
     <string name="settings_diagnostics_saved">Raport zapisany</string>
     <string name="settings_diagnostics_export_failed">Nie udało się zapisać raportu</string>
     <string name="settings_calibrate_rightward">Kalibracja kierunku — przesuń rysik w PRAWO przez 3 sekundy po naciśnięciu</string>
+    <string name="settings_adaptive_drag">Adaptacyjne fragmenty gestu (eksperymentalne)</string>
+    <string name="settings_adaptive_drag_info">Android wykonuje fragmenty wolniej niż nastawa w ms. Opcjonalnie wydłuża fragmenty do maks. 24 ms, gdy potwierdzenia są opóźnione. Można wyłączyć, aby zachować stały czas.</string>
 </resources>
