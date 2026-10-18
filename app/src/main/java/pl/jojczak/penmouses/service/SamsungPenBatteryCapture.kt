@@ -1,6 +1,7 @@
 package pl.jojczak.penmouses.service
 
 import android.view.accessibility.AccessibilityNodeInfo
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 
 /**
  * Reads the battery percentage already displayed on the official Samsung S Pen screen.
@@ -11,7 +12,10 @@ internal object SamsungPenBatteryCapture {
     private val percent = Regex("""^\s*(100|[1-9]?\d)\s*%\s*$""")
 
     fun extract(root: AccessibilityNodeInfo?): Int? {
-        if (root == null) return null
+        if (root == null) {
+            DiagnosticRecorder.record("battery-parser", "rootNodeUnavailable")
+            return null
+        }
         val texts = ArrayList<String>(60)
         val stack = ArrayDeque<AccessibilityNodeInfo>()
         stack.add(root)
@@ -38,9 +42,13 @@ internal object SamsungPenBatteryCapture {
             it.contains("Air actions", ignoreCase = true) ||
             it.contains("Removed", ignoreCase = true) ||
             it.contains("Inserted", ignoreCase = true) }
-        if (!isPenSettings || !hasPenContext) return null
+        if (!isPenSettings || !hasPenContext) {
+            DiagnosticRecorder.record("battery-parser", "noPenPage title=$isPenSettings penContext=$hasPenContext nodeTexts=${normalized.size}")
+            return null
+        }
         val values = normalized.mapNotNull { percent.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.distinct()
         // If multiple percentages appear, never guess which one represents the stylus.
+        DiagnosticRecorder.record("battery-parser", "penPage=true nodeTexts=${normalized.size} percentCandidates=$values")
         return values.singleOrNull()
     }
 }
