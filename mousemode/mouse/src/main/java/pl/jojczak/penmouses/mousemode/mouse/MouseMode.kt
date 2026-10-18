@@ -63,6 +63,8 @@ class MouseMode(
     private var receiverRegistered = false
     private var dragGeneration = 0L
     private var lastDiagnosticMotionMs = 0L
+    private var buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
+    private var holdRecognizer = buildHoldRecognizer()
     private var rightwardCalibration: RightwardMotionCalibration? = null
     private var finishCalibration: Runnable? = null
 
@@ -90,6 +92,42 @@ class MouseMode(
                 }
             },
         )
+    }
+
+    private fun buildHoldRecognizer() = ButtonHoldRecognizer(
+        schedule = { duration, action ->
+            val task = Runnable { action() }
+            mainHandler.postDelayed(task, duration)
+            { mainHandler.removeCallbacks(task) }
+        },
+        thresholdMs = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS).toLong(),
+        onHold = {
+            DiagnosticRecorder.record("hold", "activated action=$buttonHoldAction")
+            when (buttonHoldAction) {
+                1 -> performTouchAtCursor(550L)
+                2 -> performDoubleTapAtCursor()
+            }
+        }
+    )
+
+    /** Accessibility gestures are touchscreen input, not native mouse secondary button events. */
+    private fun performTouchAtCursor(durationMs: Long) {
+        val point = getCursorPos()
+        val staticPath = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
+        val stroke = GestureDescription.StrokeDescription(staticPath, 0L, durationMs)
+        val accepted = dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        DiagnosticRecorder.record("hold", "touch durationMs=$durationMs accepted=$accepted")
+    }
+
+    private fun performDoubleTapAtCursor() {
+        val point = getCursorPos()
+        val path = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 45L))
+            .addStroke(GestureDescription.StrokeDescription(path, 125L, 45L))
+            .build()
+        val accepted = dispatchGesture(gesture, null, null)
+        DiagnosticRecorder.record("hold", "doubleTap accepted=$accepted")
     }
 
     private var path = Path()
@@ -186,6 +224,7 @@ class MouseMode(
         finishCalibration?.let(mainHandler::removeCallbacks)
         finishCalibration = null
         rightwardCalibration = null
+        holdRecognizer.cancel()
         DiagnosticRecorder.record("mode", "stop mouse")
         ++dragGeneration
         dragController?.close()
@@ -210,6 +249,29 @@ class MouseMode(
             return
         }
         if (ignoreUntilRelease) return
+        if (buttonHoldAction != 0) {
+            when (type) {
+                ButtonEvent.ACTION_DOWN -> {
+                    showCursor()
+                    if (holdRecognizer.press()) {
+                        cursorAnimator.clickCursor()
+                        DiagnosticRecorder.record("hold", "pressed mode=$buttonHoldAction")
+                    }
+                }
+                ButtonEvent.ACTION_UP -> {
+                    val shortTap = holdRecognizer.release()
+                    cursorAnimator.releaseCursor()
+                    if (shortTap) {
+                        performTouchAtCursor(55L)
+                        DiagnosticRecorder.record("hold", "shortTap")
+                    } else {
+                        DiagnosticRecorder.record("hold", "release after hold / unmatched")
+                    }
+                    hideCursor()
+                }
+            }
+            return
+        }
         if (realtimeEnabled) {
             if (type == ButtonEvent.ACTION_DOWN) {
                 showCursor()
@@ -367,6 +429,7 @@ class MouseMode(
     override fun preferencesUpdated() {
         super.preferencesUpdated()
         legacyButtonDown = false
+        holdRecognizer.cancel()
         mainHandler.removeCallbacks(updateStrokePathJob)
         cursorAnimator.releaseCursor()
         ++dragGeneration
@@ -378,6 +441,8 @@ class MouseMode(
         prefHideDelay = cursorPreferences.getHideDelay()
         prefSensitivity = cursorPreferences.getSensitivity()
         prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+        buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
+        holdRecognizer = buildHoldRecognizer()
         prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
         DiagnosticRecorder.record("preferences", "axis=$prefRotation sensitivity=$prefSensitivity acceleration=$prefAcceleration")
         airMotionAcceleration.reset()
