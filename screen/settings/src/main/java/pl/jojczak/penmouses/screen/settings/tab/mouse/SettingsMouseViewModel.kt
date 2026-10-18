@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 import pl.jojczak.penmouses.core.common.utils.CursorType
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
@@ -47,6 +48,7 @@ internal class SettingsMouseViewModel @Inject constructor(
             sPenSensitivity = preferencesManager.get(PrefKeys.MOUSE_SENSITIVITY),
             mouseAcceleration = preferencesManager.get(PrefKeys.MOUSE_ACCELERATION),
             axisRotation = preferencesManager.get(PrefKeys.MOUSE_AXIS_ROTATION),
+            diagnosticsEnabled = preferencesManager.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
             cursorHideDelay = preferencesManager.get(PrefKeys.MOUSE_CURSOR_HIDE_DELAY),
             sPenSleepEnabled = preferencesManager.get(PrefKeys.MOUSE_SLEEP_ENABLED),
             cursorSize = preferencesManager.get(PrefKeys.MOUSE_CURSOR_SIZE),
@@ -62,15 +64,21 @@ internal class SettingsMouseViewModel @Inject constructor(
         )
     }
 
-    override fun onViewAction(action: SettingsViewAction) = when (action) {
+    override fun onViewAction(action: SettingsViewAction): Unit = when (action) {
         is SettingsViewAction.RefreshData -> refreshSettingsData()
         is SettingsViewAction.SavePreference<*> -> savePreference(action)
         is SettingsViewAction.UpdatePreference<*> -> updatePreference(action)
         is SettingsCursorViewAction.CursorTypeChanged -> onCursorTypeChange(action.cursorType)
         is SettingsCursorViewAction.CustomCursorFileSelected -> loadCustomCursorImage(action.uri)
         is SettingsMouseViewAction.SPenSleepEnabled -> onSPenSleepEnabledChange(action.enabled)
+        is SettingsMouseViewAction.DiagnosticsEnabled -> {
+            updateState { it.copy(diagnosticsEnabled = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED, action.enabled)
+            DiagnosticRecorder.setEnabled(action.enabled)
+        }
         is SettingsMouseViewAction.RecalibrateMotion -> {
             AppToServiceEvent.event.tryEmit(AppToServiceEvent.Event.RecalibrateMotion)
+            Unit
         }
         is SettingsMouseViewAction.BatteryOverlayEnabled -> {
             updateState { it.copy(batteryOverlayEnabled = action.enabled) }
