@@ -139,7 +139,7 @@ class MouseService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || !preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.MOUSE_BATTERY_OVERLAY)) return
+        if (event == null || !(preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY) || preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED))) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg != "com.android.settings" && pkg != "com.samsung.android.service.aircommand") return
         val now = android.os.SystemClock.uptimeMillis()
