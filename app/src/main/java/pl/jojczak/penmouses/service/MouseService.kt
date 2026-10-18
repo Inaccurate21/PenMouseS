@@ -147,7 +147,7 @@ class MouseService : AccessibilityService() {
         if (now - lastBatteryCaptureMs < 800L) return
         lastBatteryCaptureMs = now
         DiagnosticRecorder.record("battery", "eventOnPenSettings package=$pkg type=${event.eventType}")
-        val level = SamsungPenBatteryCapture.extract(rootInActiveWindow) ?: return
+        val level = SamsungPenBatteryCapture.extract(rootInActiveWindow, allowHeadingOnly = pkg == "com.samsung.android.service.aircommand") ?: return
         DiagnosticRecorder.record("battery", "capturedLevel=$level source=visibleSamsungSpenSettings")
         if (level != preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL)
             || System.currentTimeMillis() - preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_AT) > 60_000L) {
