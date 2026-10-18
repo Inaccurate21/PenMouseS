@@ -32,6 +32,9 @@ jobs:
       - name: Install Android platform and build tools
         run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
 
+      - name: Compile and run tests without distributing an APK
+        run: bash ./gradlew :mousemode:mouse:testDebugUnitTest :app:testDebugUnitTest :app:compileDebugKotlin --no-daemon
+
       - name: Restore permanent signing key from encrypted repository backup
         env:
           LIVE_SIGNING_SECRET: ${{ secrets.LIVE_SIGNING_SECRET }}
