@@ -12,7 +12,7 @@ import java.util.Locale
  * notification contents, device identifiers, or application/window text.
  */
 object DiagnosticRecorder {
-    private const val MAX_EVENTS = 600
+    private const val MAX_EVENTS = 2400
     private val entries = ArrayDeque<String>(MAX_EVENTS)
     @Volatile private var enabled = false
     private val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
