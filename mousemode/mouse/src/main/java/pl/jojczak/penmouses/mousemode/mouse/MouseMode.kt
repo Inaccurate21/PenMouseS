@@ -63,6 +63,8 @@ class MouseMode(
     private var receiverRegistered = false
     private var dragGeneration = 0L
     private var lastDiagnosticMotionMs = 0L
+    private var rightwardCalibration: RightwardMotionCalibration? = null
+    private var finishCalibration: Runnable? = null
 
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -136,6 +138,40 @@ class MouseMode(
 
     fun refreshBatteryStatus() = sPenBatteryOverlay.refresh()
 
+    /**
+     * Calibrate using a deliberate rightward S Pen sweep, not an unreliable
+     * automatic orientation guess from arbitrary cursor movements.
+     */
+    fun startDirectionCalibration() {
+        if (!canStartJobs || dragController?.isActive == true ||
+            legacyButtonDown || sPenManager.isSPenButtonDown) {
+            Toast.makeText(context, "Zwolnij przycisk S Pena i spróbuj ponownie", Toast.LENGTH_SHORT).show()
+            return
+        }
+        finishCalibration?.let(mainHandler::removeCallbacks)
+        rightwardCalibration = RightwardMotionCalibration()
+        airMotionAcceleration.reset()
+        DiagnosticRecorder.record("calibration", "start: move the S Pen right for 3s")
+        Toast.makeText(context, "Teraz przesuwaj S Pen w PRAWO przez 3 sekundy", Toast.LENGTH_LONG).show()
+        val task = Runnable {
+            finishCalibration = null
+            val sample = rightwardCalibration ?: return@Runnable
+            rightwardCalibration = null
+            val rotation = sample.inferRotation()
+            DiagnosticRecorder.record("calibration", sample.summary())
+            if (rotation == null) {
+                Toast.makeText(context, "Kalibracja niepewna — powtórz wyraźniejszy ruch", Toast.LENGTH_LONG).show()
+            } else {
+                preferences.put(PrefKeys.MOUSE_AXIS_ROTATION, rotation.toFloat())
+                prefRotation = rotation
+                airMotionAcceleration.reset()
+                Toast.makeText(context, "Korekta osi: ${rotation}°", Toast.LENGTH_SHORT).show()
+            }
+        }
+        finishCalibration = task
+        mainHandler.postDelayed(task, 3_000L)
+    }
+
     fun recalibrateMotion() {
         if (!canStartJobs) return
         DiagnosticRecorder.record("motion", "manual sensor listener restart")
@@ -147,6 +183,9 @@ class MouseMode(
     }
 
     override fun stop() {
+        finishCalibration?.let(mainHandler::removeCallbacks)
+        finishCalibration = null
+        rightwardCalibration = null
         DiagnosticRecorder.record("mode", "stop mouse")
         ++dragGeneration
         dragController?.close()
@@ -211,6 +250,10 @@ class MouseMode(
 
     private fun onAirMotionEvent(deltaX: Float, deltaY: Float, timeStamp: Long) {
         if (!canStartJobs || !deltaX.isFinite() || !deltaY.isFinite()) return
+        if (rightwardCalibration != null) {
+            rightwardCalibration?.add(deltaX, deltaY)
+            return
+        }
         pingCursor()
 
         val (screenWidth, screenHeight) = getDisplaySize(getDisplay())
