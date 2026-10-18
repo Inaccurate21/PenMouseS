@@ -2,62 +2,131 @@ package pl.jojczak.penmouses.core.common.utils
 
 import android.content.Context
 import android.os.Build
+import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
- * Opt-in, bounded in-memory telemetry. Never records screen content, touch targets,
- * notification contents, device identifiers, or application/window text.
+ * Opt-in event timeline. Persists diagnostic events in private app storage so that
+ * exporting long after stopping mouse mode still includes the earlier session.
+ * No screen text, touched content, package names of visited apps, IDs or passwords.
+ *
+ * Disk writes run on a dedicated daemon thread to avoid slowing down gesture input.
  */
 object DiagnosticRecorder {
-    private const val MAX_EVENTS = 2400
-    private val entries = ArrayDeque<String>(MAX_EVENTS)
+    private const val MAX_MEMORY_EVENTS = 3000
+    private const val MAX_FILE_BYTES = 7L * 1024 * 1024
+    private const val MAX_RETENTION_MS = 7L * 24 * 60 * 60 * 1000
+    private const val CURRENT = "penmouse-diagnostics.log"
+    private const val PREVIOUS = "penmouse-diagnostics.previous.log"
+    private val events = ArrayDeque<String>(MAX_MEMORY_EVENTS)
+    private val worker = Executors.newSingleThreadExecutor { action ->
+        Thread(action, "penmouse-diagnostics-io").apply { isDaemon = true }
+    }
+    @Volatile private var context: Context? = null
     @Volatile private var enabled = false
-    private val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+    private var lastEventMs = 0L
+    private val clock = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+
+    @Synchronized fun initialize(context: Context) {
+        if (this.context != null) return
+        this.context = context.applicationContext
+        enabled = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+            .getBoolean(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED.name, false)
+        if (enabled) record("process", "diagnostic process started (previous logs retained)")
+    }
 
     @Synchronized fun setEnabled(value: Boolean) {
-        enabled = value
-        if (value) record("diagnostics", "enabled")
+        if (value && !enabled) {
+            enabled = true
+            record("diagnostics", "enabled")
+        } else if (!value && enabled) {
+            record("diagnostics", "disabled (existing report retained)")
+            enabled = false
+        }
     }
 
     fun isEnabled(): Boolean = enabled
 
     @Synchronized fun record(tag: String, message: String) {
         if (!enabled) return
-        if (entries.size >= MAX_EVENTS) entries.removeFirst()
-        entries.addLast("${format.format(Date())} [${tag.take(28)}] ${message.take(360).replace("\n", " ")}")
+        val now = System.currentTimeMillis()
+        val line = "${clock.format(Date(now))} [${tag.take(28)}] ${message.take(360).replace("\n", " ")}"
+        if (events.size == MAX_MEMORY_EVENTS) events.removeFirst()
+        events.addLast(line)
+        lastEventMs = now
+        val directory = context?.filesDir ?: return
+        worker.execute {
+            runCatching {
+                val file = File(directory, CURRENT)
+                if (file.exists() && (file.length() > MAX_FILE_BYTES ||
+                        System.currentTimeMillis() - file.lastModified() > MAX_RETENTION_MS)) {
+                    val previous = File(directory, PREVIOUS)
+                    previous.delete()
+                    file.renameTo(previous)
+                }
+                file.appendText(line + "\n", Charsets.UTF_8)
+            }
+        }
     }
 
-    @Synchronized fun clear() { entries.clear() }
+    @Synchronized fun clear() {
+        events.clear()
+        lastEventMs = 0L
+        val dir = context?.filesDir ?: return
+        worker.execute {
+            File(dir, CURRENT).delete()
+            File(dir, PREVIOUS).delete()
+        }
+    }
 
     @Synchronized fun snapshot(context: Context): String {
+        initialize(context)
+        // Wait for all previously enqueued disk writes before reading the timeline.
+        val flushed = runCatching { worker.submit {}.get(4, TimeUnit.SECONDS) }.isSuccess
         val prefs = PreferencesManager(context)
-        val currentSettings = listOf(
-            "diagnostic_enabled" to prefs.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
+        val now = System.currentTimeMillis()
+        val settings = listOf(
+            "diagnostics_enabled" to prefs.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
             "cursor_sensitivity" to prefs.get(PrefKeys.MOUSE_SENSITIVITY),
             "cursor_acceleration" to prefs.get(PrefKeys.MOUSE_ACCELERATION),
-            "axis_rotation_degrees" to prefs.get(PrefKeys.MOUSE_AXIS_ROTATION),
-            "drag_duration_ms" to prefs.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS),
-            "realtime_drag" to prefs.get(PrefKeys.MOUSE_REALTIME_DRAG),
+            "axis_rotation" to prefs.get(PrefKeys.MOUSE_AXIS_ROTATION),
+            "drag_ms" to prefs.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS),
+            "adaptive_drag" to prefs.get(PrefKeys.MOUSE_ADAPTIVE_DRAG),
+            "hold_action" to prefs.get(PrefKeys.MOUSE_HOLD_ACTION),
+            "hold_threshold_ms" to prefs.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS),
             "overlay_enabled" to prefs.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
-            "overlay_x" to prefs.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
-            "overlay_y" to prefs.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
-            "observed_spen_battery" to prefs.get(PrefKeys.S_PEN_OBSERVED_LEVEL),
-            "observed_at_ms" to prefs.get(PrefKeys.S_PEN_OBSERVED_AT),
+            "observed_battery_percent" to prefs.get(PrefKeys.S_PEN_OBSERVED_LEVEL),
+            "observed_battery_at" to prefs.get(PrefKeys.S_PEN_OBSERVED_AT)
         )
+        val files = listOf(File(context.filesDir, PREVIOUS), File(context.filesDir, CURRENT))
+        val persisted = if (flushed) files.filter { it.isFile }
+            .flatMap { file -> runCatching { file.readLines(Charsets.UTF_8) }.getOrDefault(emptyList()) }
+            else emptyList()
+        val source = if (persisted.isNotEmpty()) persisted else events.toList()
+        val lastLine = source.lastOrNull()
+        val lastTime = lastLine?.take(23)?.let { t ->
+            runCatching { clock.parse(t)?.time }.getOrNull()
+        }
         return buildString {
             appendLine("PenMouse S Live diagnostic report — opt-in")
-            appendLine("Created: ${format.format(Date())}")
-            appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
-            appendLine("Android SDK: ${Build.VERSION.SDK_INT}")
-            appendLine("App: ${context.packageName}")
-            appendLine("Scope: motion sensor deltas, click timing, battery UI parser metadata; no screen text")
+            appendLine("Created: ${clock.format(Date(now))}")
+            appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} / Android SDK ${Build.VERSION.SDK_INT}")
+            appendLine("Package: ${context.packageName}")
+            appendLine("Mouse status AT EXPORT: ${AppToServiceEvent.serviceStatus.value}")
+            appendLine("Last recorded event: ${lastLine?.take(23) ?: "none"}")
+            if (lastTime != null) appendLine("Time since last recorded event: ${(now - lastTime).coerceAtLeast(0L) / 1000}s (not measured while app/service inactive)")
+            appendLine("Persistent log: ${if (flushed) "flushed" else "flush timeout; recent in-memory fallback"}; oldest data rotates after 7 MB, 2 files, retention up to 7 days")
+            appendLine("Scope: service/tiles/UI lifecycle, motion deltas, click holds, gesture timing, battery parser status; no screen text")
             appendLine("Settings:")
-            currentSettings.forEach { (key,value) -> appendLine("  $key=$value") }
-            appendLine("Events (${entries.size} newest, max $MAX_EVENTS; in-memory only):")
-            entries.forEach { appendLine(it) }
+            settings.forEach { (key, value) -> appendLine("  $key=$value") }
+            appendLine("Events (${source.size} entries):")
+            source.forEach { appendLine(it) }
         }
     }
 }
