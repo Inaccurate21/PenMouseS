@@ -39,7 +39,7 @@ internal object SamsungPenBatteryCapture {
             it.contains("Removed", ignoreCase = true) ||
             it.contains("Inserted", ignoreCase = true) }
         if (!isPenSettings || !hasPenContext) return null
-        val values = normalized.mapNotNull { percent.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }
+        val values = normalized.mapNotNull { percent.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.distinct()
         // If multiple percentages appear, never guess which one represents the stylus.
         return values.singleOrNull()
     }
