@@ -20,6 +20,9 @@ internal data class SettingsMouseState(
     val batteryOverlayEnabled: Boolean = false,
     val batteryOverlayUnlocked: Boolean = false,
     val batteryOverlayAlpha: Float = 0.9f,
+    val batteryOverlayScale: Float = 1f,
+    val batteryOverlayShowTime: Boolean = true,
+    val batteryOverlayCompact: Boolean = false,
     val batteryOverlayX: Float = 0.8f,
     val batteryOverlayY: Float = 0.08f,
     val batteryOverlayColor: Float = 0f,
@@ -32,6 +35,8 @@ internal sealed class SettingsMouseViewAction : SettingsCursorViewAction() {
     data object CalibrateRightwardMotion : SettingsMouseViewAction()
     data class BatteryOverlayEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data class BatteryOverlayUnlocked(val unlocked: Boolean) : SettingsMouseViewAction()
+    data class BatteryOverlayShowTime(val enabled: Boolean) : SettingsMouseViewAction()
+    data class BatteryOverlayCompact(val enabled: Boolean) : SettingsMouseViewAction()
     data class RealtimeDragEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data class AdaptiveDragEnabled(val enabled: Boolean) : SettingsMouseViewAction()
 }
