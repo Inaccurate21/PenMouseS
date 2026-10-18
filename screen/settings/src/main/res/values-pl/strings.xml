@@ -24,4 +24,13 @@
     <string name="settings_adaptive_drag">Adaptacyjne fragmenty gestu (eksperymentalne)</string>
     <string name="settings_adaptive_drag_info">Android wykonuje fragmenty wolniej niż nastawa w ms. Opcjonalnie wydłuża fragmenty do maks. 24 ms, gdy potwierdzenia są opóźnione. Można wyłączyć, aby zachować stały czas.</string>
     <string name="settings_diagnostics_mark">Oznacz błąd</string>
+
+    <string name="settings_section_gestures">Przeciąganie i płynność</string>
+    <string name="settings_section_axis">Kalibracja kierunków</string>
+    <string name="settings_section_overlay">Nakładka baterii S Pena</string>
+    <string name="settings_section_diagnostics">Diagnostyka</string>
+    <string name="settings_section_cursor">Kursor i czułość</string>
+    <string name="settings_overlay_compact">Minimalistycznie — tylko procent baterii</string>
+    <string name="settings_overlay_time">Pokazuj godzinę ostatniego pomiaru</string>
+    <string name="settings_overlay_size">Wielkość nakładki: %s</string>
 </resources>
