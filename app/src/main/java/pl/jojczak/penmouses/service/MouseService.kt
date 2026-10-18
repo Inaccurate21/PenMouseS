@@ -47,6 +47,7 @@ class MouseService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        connected = true
         DiagnosticRecorder.setEnabled(preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED))
         registerReceiver()
     }
@@ -134,6 +135,7 @@ class MouseService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        connected = false
         stopMode()
         serviceScope.cancel()
         super.onDestroy()
@@ -158,6 +160,8 @@ class MouseService : AccessibilityService() {
     }
 
     companion object {
+        @Volatile var connected: Boolean = false
+            private set
         private const val TAG = "MouseService"
         private const val DELAY_BETWEEN_MODES = 1000L
     }
