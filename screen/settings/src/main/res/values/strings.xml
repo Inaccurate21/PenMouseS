@@ -55,4 +55,5 @@
     <string name="settings_diagnostics_clear">Clear data</string>
     <string name="settings_diagnostics_saved">Report saved</string>
     <string name="settings_diagnostics_export_failed">Could not save report</string>
+    <string name="settings_calibrate_rightward">Calibrate direction — move S Pen RIGHT for 3 seconds after tapping</string>
 </resources>
