@@ -65,6 +65,7 @@ class MouseService : AccessibilityService() {
             is Event.Stop -> stopMode()
             is Event.PreferencesUpdated -> currentMode?.preferencesUpdated()
             is Event.RecalibrateMotion -> (currentMode as? MouseMode)?.recalibrateMotion()
+            is Event.CalibrateRightwardMotion -> (currentMode as? MouseMode)?.startDirectionCalibration()
         }
     }
 
