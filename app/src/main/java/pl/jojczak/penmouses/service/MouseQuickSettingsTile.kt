@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.Event
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
@@ -41,6 +42,7 @@ class MouseQuickSettingsTile : TileService() {
 
     override fun onClick() {
         super.onClick()
+        DiagnosticRecorder.record("quick-tile", "click connected=${MouseService.connected} current=${AppToServiceEvent.serviceStatus.value}")
         if (!MouseService.connected) {
             // Android requires the user to grant/enable accessibility themselves.
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -58,6 +60,7 @@ class MouseQuickSettingsTile : TileService() {
         val mode = AppToServiceEvent.serviceStatus.value
         val action = if (mode == ModeStatus.Mouse) Event.Stop else Event.Start(ModeStatus.Mouse)
         val accepted = AppToServiceEvent.event.tryEmit(action)
+        DiagnosticRecorder.record("quick-tile", "sent=$action accepted=$accepted")
         if (!accepted) android.util.Log.w("MouseQuickTile", "Service event queue unavailable")
         // The tile follows the service's confirmed state; do not claim success on click.
     }
