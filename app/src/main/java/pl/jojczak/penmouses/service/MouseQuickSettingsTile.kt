@@ -64,11 +64,8 @@ class MouseQuickSettingsTile : TileService() {
 
     private fun refreshTile(mode: ModeStatus) {
         val tile = qsTile ?: return
-        tile.state = when {
-            !MouseService.connected -> Tile.STATE_UNAVAILABLE
-            mode == ModeStatus.Mouse -> Tile.STATE_ACTIVE
-            else -> Tile.STATE_INACTIVE
-        }
+        // Keep the tile tappable while accessibility is off, so it can open settings.
+        tile.state = if (MouseService.connected && mode == ModeStatus.Mouse) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             tile.subtitle = when {
                 !MouseService.connected -> "Dostępność wyłączona"
