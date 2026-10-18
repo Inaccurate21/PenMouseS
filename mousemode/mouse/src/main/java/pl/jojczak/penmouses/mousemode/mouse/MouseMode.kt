@@ -48,6 +48,7 @@ class MouseMode(
 ) {
     private var prefSensitivity = cursorPreferences.getSensitivity()
     private var prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+    private var prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
     private val airMotionAcceleration = AirMotionAcceleration()
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
@@ -126,6 +127,17 @@ class MouseMode(
         })
     }
 
+    fun refreshBatteryStatus() = sPenBatteryOverlay.refresh()
+
+    fun recalibrateMotion() {
+        if (!canStartJobs) return
+        airMotionAcceleration.reset()
+        motionX = null
+        motionY = null
+        sPenManager.unregisterAirMotionEventListener()
+        sPenManager.registerAirMotionEventListener(::onAirMotionEvent, ::showErrorAndStopService)
+    }
+
     override fun stop() {
         ++dragGeneration
         dragController?.close()
@@ -194,7 +206,7 @@ class MouseMode(
         val (screenWidth, screenHeight) = getDisplaySize(getDisplay())
 
         val position = getCursorPos()
-        val movement = airMotionAcceleration.convert(deltaX, deltaY, timeStamp, prefSensitivity, prefAcceleration)
+        val movement = airMotionAcceleration.convert(deltaX, deltaY, timeStamp, prefSensitivity, prefAcceleration, prefRotation)
         motionX = ((motionX ?: position.x.toFloat()) + movement.dx).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
         motionY = ((motionY ?: position.y.toFloat()) + movement.dy).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
@@ -309,6 +321,7 @@ class MouseMode(
         prefHideDelay = cursorPreferences.getHideDelay()
         prefSensitivity = cursorPreferences.getSensitivity()
         prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+        prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
         airMotionAcceleration.reset()
         prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
