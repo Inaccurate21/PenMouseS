@@ -134,6 +134,7 @@ private fun SettingsMouseTabContent(
 ) {
     settingsSectionHeader(R.string.settings_section_gestures, gesturesOpen) {
         gesturesOpen = !gesturesOpen
+        DiagnosticRecorder.record("settings", "gesturesExpanded=$gesturesOpen")
         sectionPreferences.edit().putBoolean("gestures", gesturesOpen).apply()
     }
     if (gesturesOpen) {
@@ -216,6 +217,7 @@ private fun SettingsMouseTabContent(
     }
     settingsSectionHeader(R.string.settings_section_axis, axisOpen) {
         axisOpen = !axisOpen
+        DiagnosticRecorder.record("settings", "axesExpanded=$axisOpen")
         sectionPreferences.edit().putBoolean("axes", axisOpen).apply()
     }
     if (axisOpen) {
@@ -238,6 +240,7 @@ private fun SettingsMouseTabContent(
     }
     settingsSectionHeader(R.string.settings_section_overlay, overlayOpen) {
         overlayOpen = !overlayOpen
+        DiagnosticRecorder.record("settings", "overlayExpanded=$overlayOpen")
         sectionPreferences.edit().putBoolean("overlay", overlayOpen).apply()
     }
     if (overlayOpen) {
@@ -312,6 +315,7 @@ private fun SettingsMouseTabContent(
     }
     settingsSectionHeader(R.string.settings_section_diagnostics, diagnosticsOpen) {
         diagnosticsOpen = !diagnosticsOpen
+        DiagnosticRecorder.record("settings", "diagnosticsExpanded=$diagnosticsOpen")
         sectionPreferences.edit().putBoolean("diagnostics", diagnosticsOpen).apply()
     }
     if (diagnosticsOpen) {
@@ -335,6 +339,7 @@ private fun SettingsMouseTabContent(
     }
     settingsSectionHeader(R.string.settings_section_cursor, cursorOpen) {
         cursorOpen = !cursorOpen
+        DiagnosticRecorder.record("settings", "cursorExpanded=$cursorOpen")
         sectionPreferences.edit().putBoolean("cursor", cursorOpen).apply()
     }
     if (cursorOpen) {
