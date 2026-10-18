@@ -35,10 +35,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
-        if (!isChangingConfigurations) {
-            sPenManager.disconnect()
-            AppToServiceEvent.event.tryEmit(AppToServiceEvent.Event.Stop)
-        }
+        // Mouse mode is owned by the accessibility service, not this activity.
+        // Keep an active session alive when the user closes the UI or uses the QS tile.
         super.onDestroy()
     }
 
