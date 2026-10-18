@@ -45,6 +45,17 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <service
+            android:name=".service.MouseQuickSettingsTile"
+            android:label="@string/mouse_qs_tile_title"
+            android:icon="@drawable/stylus_24px"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".core.common.notifications.NotificationsActionReceiver"
             android:exported="false" />
