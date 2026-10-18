@@ -20,4 +20,5 @@
     <string name="settings_diagnostics_clear">Wyczyść dane</string>
     <string name="settings_diagnostics_saved">Raport zapisany</string>
     <string name="settings_diagnostics_export_failed">Nie udało się zapisać raportu</string>
+    <string name="settings_calibrate_rightward">Kalibracja kierunku — przesuń rysik w PRAWO przez 3 sekundy po naciśnięciu</string>
 </resources>
