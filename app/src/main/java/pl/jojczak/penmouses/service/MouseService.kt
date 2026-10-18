@@ -48,6 +48,7 @@ class MouseService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         connected = true
+        DiagnosticRecorder.record("service", "accessibility connected")
         DiagnosticRecorder.setEnabled(preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED))
         registerReceiver()
     }
@@ -61,6 +62,7 @@ class MouseService : AccessibilityService() {
 
     private fun eventManager(event: Event) {
         Log.d(TAG, "Received event: $event")
+        DiagnosticRecorder.record("service-event", event.toString())
         when (event) {
             is Event.Start -> stopCurrentStartNew(newMode = event.mode)
             is Event.Stop -> stopMode()
@@ -117,6 +119,7 @@ class MouseService : AccessibilityService() {
         modeChangeJob?.cancel()
         val currentModeName = currentMode?.let { it::class.simpleName } ?: "null"
         Log.d(TAG, "Stopping current mode ($currentModeName)")
+        DiagnosticRecorder.record("service", "stop mode=$currentModeName -> $stopMode")
         val mode = currentMode
         currentMode = null
         mode?.stop()
@@ -131,10 +134,12 @@ class MouseService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.e(TAG, "Accessibility service interrupted")
+        DiagnosticRecorder.record("service", "accessibility interrupted")
         stopMode()
     }
 
     override fun onDestroy() {
+        DiagnosticRecorder.record("service", "destroy")
         connected = false
         stopMode()
         serviceScope.cancel()
