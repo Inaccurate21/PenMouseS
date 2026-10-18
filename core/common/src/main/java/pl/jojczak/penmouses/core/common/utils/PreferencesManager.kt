@@ -29,6 +29,9 @@ class PreferencesManager(
                 is Int -> {
                     putInt(key.name, value)
                 }
+                is Long -> {
+                    putLong(key.name, value)
+                }
 
                 is CursorType -> {
                     putString(key.name, value.name)
@@ -53,6 +56,9 @@ class PreferencesManager(
             is Int -> {
                 prefs.getInt(key.name, key.default) as T
             }
+            is Long -> {
+                prefs.getLong(key.name, key.default) as T
+            }
 
             is CursorType -> {
                 CursorType.fromValue(
@@ -70,6 +76,9 @@ class PreferencesManager(
         prefs.edit {
             put(PrefKeys.MOUSE_SENSITIVITY, PrefKeys.MOUSE_SENSITIVITY.default)
             put(PrefKeys.MOUSE_ACCELERATION, PrefKeys.MOUSE_ACCELERATION.default)
+            put(PrefKeys.MOUSE_AXIS_ROTATION, PrefKeys.MOUSE_AXIS_ROTATION.default)
+            put(PrefKeys.S_PEN_OBSERVED_LEVEL, PrefKeys.S_PEN_OBSERVED_LEVEL.default)
+            put(PrefKeys.S_PEN_OBSERVED_AT, PrefKeys.S_PEN_OBSERVED_AT.default)
             put(PrefKeys.MOUSE_BATTERY_OVERLAY, PrefKeys.MOUSE_BATTERY_OVERLAY.default)
             put(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED, PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED.default)
             put(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA, PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA.default)
@@ -105,6 +114,9 @@ object PrefKeys {
     val MOUSE_BATTERY_OVERLAY_X = PrefKey("mouse_battery_overlay_x", 0.8f, 0.01f, 0f..1f)
     val MOUSE_BATTERY_OVERLAY_Y = PrefKey("mouse_battery_overlay_y", 0.08f, 0.01f, 0f..1f)
     val MOUSE_BATTERY_OVERLAY_COLOR = PrefKey("mouse_battery_overlay_color", 0f, 1f, 0f..3f)
+    val MOUSE_AXIS_ROTATION = PrefKey("mouse_axis_rotation", 0f, 90f, 0f..270f)
+    val S_PEN_OBSERVED_LEVEL = PrefKey("spen_observed_battery_percent", -1)
+    val S_PEN_OBSERVED_AT = PrefKey("spen_observed_battery_timestamp_ms", 0L)
     val MOUSE_ACCELERATION = PrefKey("mouse_acceleration", 1.5f, 0.5f, 0f..3f)
     val MOUSE_CURSOR_SIZE = PrefKey("cursor_size", 60f, 1f, 20f..250f)
     val MOUSE_CURSOR_TYPE = PrefKey("cursor_type", CursorType.Light)
