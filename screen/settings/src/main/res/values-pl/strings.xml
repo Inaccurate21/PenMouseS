@@ -13,4 +13,11 @@
     <string name="settings_spen_battery_overlay_color">Kolor nakładki: %s</string>
     <string name="settings_axis_rotation">Korekta kierunków ruchu: %s</string>
     <string name="settings_recalibrate_motion">Odśwież czujnik ruchu S Pena</string>
+    <string name="settings_diagnostics_title">Diagnostyka S Pena</string>
+    <string name="settings_diagnostics_info">Rejestruje wyłącznie próbki ruchu, zdarzenia przycisku, czasy gestów oraz metadane odczytu baterii. Maksymalnie 600 zdarzeń w pamięci. Włącz, odtwórz problem i wyeksportuj raport.</string>
+    <string name="settings_diagnostics_enable">Włącz rejestrowanie</string>
+    <string name="settings_diagnostics_export">Eksportuj raport TXT</string>
+    <string name="settings_diagnostics_clear">Wyczyść dane</string>
+    <string name="settings_diagnostics_saved">Raport zapisany</string>
+    <string name="settings_diagnostics_export_failed">Nie udało się zapisać raportu</string>
 </resources>
