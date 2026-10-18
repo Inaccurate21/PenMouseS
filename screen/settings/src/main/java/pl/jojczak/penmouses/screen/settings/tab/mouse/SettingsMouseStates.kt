@@ -28,6 +28,7 @@ internal sealed class SettingsMouseViewAction : SettingsCursorViewAction() {
     data class SPenSleepEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data class DiagnosticsEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data object RecalibrateMotion : SettingsMouseViewAction()
+    data object CalibrateRightwardMotion : SettingsMouseViewAction()
     data class BatteryOverlayEnabled(val enabled: Boolean) : SettingsMouseViewAction()
     data class BatteryOverlayUnlocked(val unlocked: Boolean) : SettingsMouseViewAction()
     data class RealtimeDragEnabled(val enabled: Boolean) : SettingsMouseViewAction()
