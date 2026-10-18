@@ -4,11 +4,13 @@
     <string name="settings_realtime_drag_info">Naciśnięcie rozpoczyna dotyk; trzymaj, aby przeciągać, puść, aby zwolnić. To emulacja dotyku, nie systemowa mysz. Limit bezpieczeństwa: 30 sekund. Wyłącz, aby wrócić do oryginalnego trybu.</string>
     <string name="settings_drag_segment_ms">Płynność gestu: %s ms (mniej = krótsze fragmenty, niekoniecznie mniejsze opóźnienie)</string>
     <string name="settings_spen_battery_overlay_title">Nakładka stanu S Pena</string>
-    <string name="settings_spen_battery_overlay_hint">Testowy odczyt baterii z ustawień Samsunga. Jeśli system nie udostępnia procentu, zobaczysz „—”. Nakładka działa podczas trybu myszy.</string>
+    <string name="settings_spen_battery_overlay_hint">Ostatni odczyt procentu z ekranu Ustawienia → Rysik S Pen. Otwórz ten ekran raz, aby przechwycić wartość (usługa dostępności musi być włączona). Pokazywana jest godzina odczytu, a nie stały pomiar na żywo.</string>
     <string name="settings_spen_battery_overlay_enable">Pokaż nakładkę</string>
     <string name="settings_spen_battery_overlay_unlock">Odblokuj przeciąganie nakładki palcem</string>
     <string name="settings_spen_battery_overlay_alpha">Przezroczystość: %s</string>
     <string name="settings_spen_battery_overlay_x">Pozycja pozioma: %s</string>
     <string name="settings_spen_battery_overlay_y">Pozycja pionowa: %s</string>
     <string name="settings_spen_battery_overlay_color">Kolor nakładki: %s</string>
+    <string name="settings_axis_rotation">Korekta kierunków ruchu: %s</string>
+    <string name="settings_recalibrate_motion">Odśwież czujnik ruchu S Pena</string>
 </resources>
