@@ -33,7 +33,7 @@ jobs:
       - name: Install Android platform and build tools
         run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
       - name: Test gesture state machine and build standalone debug APK
-        run: bash ./gradlew :mousemode:mouse:testDebugUnitTest :app:assembleDebug --no-daemon
+        run: bash ./gradlew :mousemode:mouse:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: PenMouseS-Live-test-APK
