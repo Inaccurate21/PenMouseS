@@ -79,6 +79,7 @@ internal fun SettingsMouseTab(
         onCustomCursorFileSelected = { viewModel.onViewAction(SettingsCursorViewAction.CustomCursorFileSelected(it))},
         onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
         onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) },
+        onAdaptiveDragChange = { viewModel.onViewAction(SettingsMouseViewAction.AdaptiveDragEnabled(it)) },
         onRecalibrateMotion = { viewModel.onViewAction(SettingsMouseViewAction.RecalibrateMotion) },
         onCalibrateRightward = { viewModel.onViewAction(SettingsMouseViewAction.CalibrateRightwardMotion) },
         onDiagnosticsEnabled = { viewModel.onViewAction(SettingsMouseViewAction.DiagnosticsEnabled(it)) },
@@ -100,6 +101,7 @@ private fun SettingsMouseTabContent(
     onCustomCursorFileSelected: (Uri) -> Unit = {},
     onSPenSleepEnabledChange: (Boolean) -> Unit = {},
     onRealtimeDragChange: (Boolean) -> Unit = {},
+    onAdaptiveDragChange: (Boolean) -> Unit = {},
     onRecalibrateMotion: () -> Unit = {},
     onCalibrateRightward: () -> Unit = {},
     onDiagnosticsEnabled: (Boolean) -> Unit = {},
@@ -122,6 +124,15 @@ private fun SettingsMouseTabContent(
         }
     }
     if (viewState.realtimeDragEnabled) {
+        item {
+            Row(modifier = Modifier.padding(pad_m).clickable { onAdaptiveDragChange(!viewState.adaptiveDragEnabled) }) {
+                Checkbox(checked = viewState.adaptiveDragEnabled, onCheckedChange = onAdaptiveDragChange)
+                Column {
+                    Text(stringResource(R.string.settings_adaptive_drag))
+                    Text(stringResource(R.string.settings_adaptive_drag_info), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         settingsSlider(
             text = R.string.settings_drag_segment_ms,
             value = viewState.dragSegmentMs,
