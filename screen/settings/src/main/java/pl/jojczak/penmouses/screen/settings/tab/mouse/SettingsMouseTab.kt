@@ -1,6 +1,9 @@
 package pl.jojczak.penmouses.screen.settings.tab.mouse
 
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
@@ -30,6 +34,7 @@ import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.utils.CursorType
 import pl.jojczak.penmouses.core.common.utils.PrefKey
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 import pl.jojczak.penmouses.core.ui.theme.PenMouseSDevicePreview
 import pl.jojczak.penmouses.core.ui.theme.pad_m
 import pl.jojczak.penmouses.core.ui.theme.radius_m
@@ -48,6 +53,17 @@ internal fun SettingsMouseTab(
     viewModel: SettingsMouseViewModel = hiltViewModel()
 ) {
     val viewState by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) {
+            val success = runCatching {
+                val stream = context.contentResolver.openOutputStream(uri) ?: error("Cannot open output")
+                stream.bufferedWriter().use { it.write(DiagnosticRecorder.snapshot(context)) }
+            }.isSuccess
+            Toast.makeText(context, if (success) R.string.settings_diagnostics_saved
+                else R.string.settings_diagnostics_export_failed, Toast.LENGTH_LONG).show()
+        }
+    }
 
     LaunchedEffect(refreshDataTrigger) {
         if (!refreshDataTrigger) viewModel.onViewAction(SettingsViewAction.RefreshData)
@@ -64,6 +80,9 @@ internal fun SettingsMouseTab(
         onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
         onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) },
         onRecalibrateMotion = { viewModel.onViewAction(SettingsMouseViewAction.RecalibrateMotion) },
+        onDiagnosticsEnabled = { viewModel.onViewAction(SettingsMouseViewAction.DiagnosticsEnabled(it)) },
+        onExportDiagnostics = { exportLauncher.launch("PenMouseS-diagnostyka-" + System.currentTimeMillis() + ".txt") },
+        onClearDiagnostics = { DiagnosticRecorder.clear() },
         onBatteryOverlayEnabled = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayEnabled(it)) },
         onBatteryOverlayUnlocked = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayUnlocked(it)) }
     )
@@ -81,6 +100,9 @@ private fun SettingsMouseTabContent(
     onSPenSleepEnabledChange: (Boolean) -> Unit = {},
     onRealtimeDragChange: (Boolean) -> Unit = {},
     onRecalibrateMotion: () -> Unit = {},
+    onDiagnosticsEnabled: (Boolean) -> Unit = {},
+    onExportDiagnostics: () -> Unit = {},
+    onClearDiagnostics: () -> Unit = {},
     onBatteryOverlayEnabled: (Boolean) -> Unit = {},
     onBatteryOverlayUnlocked: (Boolean) -> Unit = {}
 ) = LazyColumn(
@@ -170,6 +192,21 @@ private fun SettingsMouseTabContent(
             onPrefChanging = onPrefChanging,
             onPrefChanged = onPrefChanged
         )
+    }
+    horizontalDivider()
+    item {
+        Column(modifier = Modifier.padding(pad_m)) {
+            Text(stringResource(R.string.settings_diagnostics_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_diagnostics_info), style = MaterialTheme.typography.bodySmall)
+            Row(modifier = Modifier.clickable { onDiagnosticsEnabled(!viewState.diagnosticsEnabled) }) {
+                Checkbox(checked = viewState.diagnosticsEnabled, onCheckedChange = onDiagnosticsEnabled)
+                Text(stringResource(R.string.settings_diagnostics_enable), modifier = Modifier.padding(pad_m))
+            }
+            Row {
+                TextButton(onClick = onExportDiagnostics) { Text(stringResource(R.string.settings_diagnostics_export)) }
+                TextButton(onClick = onClearDiagnostics) { Text(stringResource(R.string.settings_diagnostics_clear)) }
+            }
+        }
     }
     horizontalDivider()
     cursorIconComponent(
