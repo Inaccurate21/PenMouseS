@@ -56,4 +56,6 @@
     <string name="settings_diagnostics_saved">Report saved</string>
     <string name="settings_diagnostics_export_failed">Could not save report</string>
     <string name="settings_calibrate_rightward">Calibrate direction — move S Pen RIGHT for 3 seconds after tapping</string>
+    <string name="settings_adaptive_drag">Adaptive gesture segments (experimental)</string>
+    <string name="settings_adaptive_drag_info">Android may acknowledge segments much later than their requested length. Optionally increases segment duration up to 24 ms when callbacks are slow. Disable to keep a fixed duration.</string>
 </resources>
