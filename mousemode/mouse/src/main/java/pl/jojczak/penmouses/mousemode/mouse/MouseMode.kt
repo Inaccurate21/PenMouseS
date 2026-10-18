@@ -18,6 +18,7 @@ import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
 import pl.jojczak.penmouses.core.common.spen.listener.ButtonAction
 import pl.jojczak.penmouses.core.common.spen.listener.ConnectionResultCallback
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
 import pl.jojczak.penmouses.core.common.utils.getDisplaySize
@@ -61,6 +62,7 @@ class MouseMode(
     private var motionY: Float? = null
     private var receiverRegistered = false
     private var dragGeneration = 0L
+    private var lastDiagnosticMotionMs = 0L
 
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -100,6 +102,7 @@ class MouseMode(
         super.start()
 
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
+        DiagnosticRecorder.record("mode", "start mouse realtime=$realtimeEnabled")
         if (realtimeEnabled) dragController = newDragController()
         sPenBatteryOverlay.refresh()
         ContextCompat.registerReceiver(context, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -108,6 +111,7 @@ class MouseMode(
 
         sPenManager.connect(object : ConnectionResultCallback() {
             override fun onSuccess() {
+                DiagnosticRecorder.record("connection", "S Pen connected")
                 if (!canStartJobs) return
                 pingCursor()
                 mainHandler.postDelayed({
@@ -123,7 +127,10 @@ class MouseMode(
                 }, PenConst.DELAY_TO_EVENT_REGISTER_MS)
             }
 
-            override fun onFailure(errorCode: Int) = showErrorAndStopService(errorCode)
+            override fun onFailure(errorCode: Int) {
+                DiagnosticRecorder.record("connection", "failed code=$errorCode")
+                showErrorAndStopService(errorCode)
+            }
         })
     }
 
@@ -131,6 +138,7 @@ class MouseMode(
 
     fun recalibrateMotion() {
         if (!canStartJobs) return
+        DiagnosticRecorder.record("motion", "manual sensor listener restart")
         airMotionAcceleration.reset()
         motionX = null
         motionY = null
@@ -139,6 +147,7 @@ class MouseMode(
     }
 
     override fun stop() {
+        DiagnosticRecorder.record("mode", "stop mouse")
         ++dragGeneration
         dragController?.close()
         dragController = null
@@ -156,6 +165,7 @@ class MouseMode(
 
     private fun onButtonEvent(@ButtonAction type: Int, timeStamp: Long) {
         if (!canStartJobs) return
+        DiagnosticRecorder.record("button", "type=$type realtime=$realtimeEnabled timestamp=$timeStamp")
         if (type == ButtonEvent.ACTION_UP && ignoreUntilRelease) {
             ignoreUntilRelease = false
             return
@@ -207,6 +217,10 @@ class MouseMode(
 
         val position = getCursorPos()
         val movement = airMotionAcceleration.convert(deltaX, deltaY, timeStamp, prefSensitivity, prefAcceleration, prefRotation)
+        if (DiagnosticRecorder.isEnabled() && SystemClock.uptimeMillis() - lastDiagnosticMotionMs > 160L) {
+            lastDiagnosticMotionMs = SystemClock.uptimeMillis()
+            DiagnosticRecorder.record("motion", "deltaX=$deltaX deltaY=$deltaY timestamp=$timeStamp pxX=${movement.dx} pxY=${movement.dy} axis=$prefRotation displayRotation=${getDisplay().rotation}")
+        }
         motionX = ((motionX ?: position.x.toFloat()) + movement.dx).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
         motionY = ((motionY ?: position.y.toFloat()) + movement.dy).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
@@ -322,6 +336,7 @@ class MouseMode(
         prefSensitivity = cursorPreferences.getSensitivity()
         prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
         prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
+        DiagnosticRecorder.record("preferences", "axis=$prefRotation sensitivity=$prefSensitivity acceleration=$prefAcceleration")
         airMotionAcceleration.reset()
         prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
