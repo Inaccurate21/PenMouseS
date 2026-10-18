@@ -14,16 +14,30 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.firebase.crashlytics")
 }
 
+// A stable private key is encrypted in the repository; only the owner controls
+// its GitHub Actions decryption secret. Local unsigned builds use default debug signing.
+val liveSigningSecret = System.getenv("LIVE_SIGNING_SECRET")?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "pl.jojczak.penmouses"
 
     defaultConfig {
         applicationId = "pl.inaccurate21.penmouses.live"
-        versionNameSuffix = "-live.4"
+        versionNameSuffix = "-live.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
+        create("stableLiveDebug") {
+            storeFile = file("signing/live-debug-keystore.p12")
+            storePassword = liveSigningSecret
+            keyPassword = liveSigningSecret
+            keyAlias = "penmouse-live"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
+        }
         create("release") {
             storeFile = file("keystore.jks")
             storePassword = System.getenv("KEYSTORE_PASSWORD")
@@ -47,6 +61,9 @@ android {
         }
         getByName("debug") {
             applicationIdSuffix = ".debug"
+            if (liveSigningSecret != null) {
+                signingConfig = signingConfigs.getByName("stableLiveDebug")
+            }
         }
     }
 
