@@ -1,8 +1,10 @@
 package pl.jojczak.penmouses.screen.settings.tab.mouse
 
 import android.content.Context
+import android.content.SharedPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.utils.CursorType
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
@@ -22,11 +24,29 @@ internal class SettingsMouseViewModel @Inject constructor(
     modeStatus = ModeStatus.Mouse,
     context = context
 ) {
+    private val sharedPreferences = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+    private val positionListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == PrefKeys.MOUSE_BATTERY_OVERLAY_X.name || key == PrefKeys.MOUSE_BATTERY_OVERLAY_Y.name) {
+            updateState { it.copy(
+                batteryOverlayX = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
+                batteryOverlayY = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
+            ) }
+        }
+    }
+
+    init { sharedPreferences.registerOnSharedPreferenceChangeListener(positionListener) }
+
+    override fun onCleared() {
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(positionListener)
+        super.onCleared()
+    }
+
     override fun refreshSettingsData() = updateState {
         SettingsMouseState(
             cursorType = preferencesManager.get(PrefKeys.MOUSE_CURSOR_TYPE),
             sPenSensitivity = preferencesManager.get(PrefKeys.MOUSE_SENSITIVITY),
             mouseAcceleration = preferencesManager.get(PrefKeys.MOUSE_ACCELERATION),
+            axisRotation = preferencesManager.get(PrefKeys.MOUSE_AXIS_ROTATION),
             cursorHideDelay = preferencesManager.get(PrefKeys.MOUSE_CURSOR_HIDE_DELAY),
             sPenSleepEnabled = preferencesManager.get(PrefKeys.MOUSE_SLEEP_ENABLED),
             cursorSize = preferencesManager.get(PrefKeys.MOUSE_CURSOR_SIZE),
@@ -49,6 +69,9 @@ internal class SettingsMouseViewModel @Inject constructor(
         is SettingsCursorViewAction.CursorTypeChanged -> onCursorTypeChange(action.cursorType)
         is SettingsCursorViewAction.CustomCursorFileSelected -> loadCustomCursorImage(action.uri)
         is SettingsMouseViewAction.SPenSleepEnabled -> onSPenSleepEnabledChange(action.enabled)
+        is SettingsMouseViewAction.RecalibrateMotion -> {
+            AppToServiceEvent.event.tryEmit(AppToServiceEvent.Event.RecalibrateMotion)
+        }
         is SettingsMouseViewAction.BatteryOverlayEnabled -> {
             updateState { it.copy(batteryOverlayEnabled = action.enabled) }
             preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY, action.enabled)
@@ -68,6 +91,7 @@ internal class SettingsMouseViewModel @Inject constructor(
     }
 
     override fun updatePreference(action: SettingsViewAction.UpdatePreference<*>) = when(action.key) {
+        PrefKeys.MOUSE_AXIS_ROTATION -> updateState { it.copy(axisRotation = action.value as Float) }
         PrefKeys.MOUSE_ACCELERATION -> updateState { it.copy(mouseAcceleration = action.value as Float) }
 
         PrefKeys.MOUSE_SENSITIVITY -> {
