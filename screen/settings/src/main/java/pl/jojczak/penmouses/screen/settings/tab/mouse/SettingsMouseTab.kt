@@ -85,6 +85,7 @@ internal fun SettingsMouseTab(
         onDiagnosticsEnabled = { viewModel.onViewAction(SettingsMouseViewAction.DiagnosticsEnabled(it)) },
         onExportDiagnostics = { exportLauncher.launch("PenMouseS-diagnostyka-" + System.currentTimeMillis() + ".txt") },
         onClearDiagnostics = { DiagnosticRecorder.clear() },
+        onMarkIssue = { DiagnosticRecorder.record("USER_MARK", "user marked a cursor or drag problem") },
         onBatteryOverlayEnabled = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayEnabled(it)) },
         onBatteryOverlayUnlocked = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayUnlocked(it)) }
     )
@@ -107,6 +108,7 @@ private fun SettingsMouseTabContent(
     onDiagnosticsEnabled: (Boolean) -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     onClearDiagnostics: () -> Unit = {},
+    onMarkIssue: () -> Unit = {},
     onBatteryOverlayEnabled: (Boolean) -> Unit = {},
     onBatteryOverlayUnlocked: (Boolean) -> Unit = {}
 ) = LazyColumn(
@@ -221,6 +223,9 @@ private fun SettingsMouseTabContent(
             Row {
                 TextButton(onClick = onExportDiagnostics) { Text(stringResource(R.string.settings_diagnostics_export)) }
                 TextButton(onClick = onClearDiagnostics) { Text(stringResource(R.string.settings_diagnostics_clear)) }
+                TextButton(onClick = onMarkIssue, enabled = viewState.diagnosticsEnabled) {
+                    Text(stringResource(R.string.settings_diagnostics_mark))
+                }
             }
         }
     }
