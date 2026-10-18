@@ -11,7 +11,7 @@ import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 internal object SamsungPenBatteryCapture {
     private val percent = Regex("""^\s*(100|[1-9]?\d)\s*%\s*$""")
 
-    fun extract(root: AccessibilityNodeInfo?): Int? {
+    fun extract(root: AccessibilityNodeInfo?, allowHeadingOnly: Boolean = false): Int? {
         if (root == null) {
             DiagnosticRecorder.record("battery-parser", "rootNodeUnavailable")
             return null
@@ -28,11 +28,11 @@ internal object SamsungPenBatteryCapture {
                 node.getChild(index)?.let(stack::addLast)
             }
         }
-        return extractFromTexts(texts)
+        return extractFromTexts(texts, allowHeadingOnly)
     }
 
     // Pure parser: never mistake unrelated charge levels on a generic Settings screen.
-    fun extractFromTexts(texts: List<String>): Int? {
+    fun extractFromTexts(texts: List<String>, allowHeadingOnly: Boolean = false): Int? {
         val normalized = texts.map { it.trim() }
         val isPenSettings = normalized.any { it.equals("Rysik S Pen", ignoreCase = true) ||
             it.equals("S Pen", ignoreCase = true) }
@@ -42,8 +42,8 @@ internal object SamsungPenBatteryCapture {
             it.contains("Air actions", ignoreCase = true) ||
             it.contains("Removed", ignoreCase = true) ||
             it.contains("Inserted", ignoreCase = true) }
-        if (!isPenSettings || !hasPenContext) {
-            DiagnosticRecorder.record("battery-parser", "noPenPage title=$isPenSettings penContext=$hasPenContext nodeTexts=${normalized.size}")
+        if (!isPenSettings || (!hasPenContext && !allowHeadingOnly)) {
+            DiagnosticRecorder.record("battery-parser", "noPenPage title=$isPenSettings penContext=$hasPenContext headingOnly=$allowHeadingOnly nodeTexts=${normalized.size}")
             return null
         }
         val values = normalized.mapNotNull { percent.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.distinct()
