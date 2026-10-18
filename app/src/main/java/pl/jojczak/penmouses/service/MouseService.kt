@@ -19,6 +19,8 @@ import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.Event
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
+import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.mousemode.base.BaseMode
 import pl.jojczak.penmouses.mousemode.mouse.MouseMode
 import pl.jojczak.penmouses.mousemode.point.PointMode
@@ -45,6 +47,7 @@ class MouseService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        DiagnosticRecorder.setEnabled(preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED))
         registerReceiver()
     }
 
@@ -142,7 +145,9 @@ class MouseService : AccessibilityService() {
         val now = android.os.SystemClock.uptimeMillis()
         if (now - lastBatteryCaptureMs < 800L) return
         lastBatteryCaptureMs = now
+        DiagnosticRecorder.record("battery", "eventOnPenSettings package=$pkg type=${event.eventType}")
         val level = SamsungPenBatteryCapture.extract(rootInActiveWindow) ?: return
+        DiagnosticRecorder.record("battery", "capturedLevel=$level source=visibleSamsungSpenSettings")
         if (level != preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL)
             || System.currentTimeMillis() - preferences.get(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_AT) > 60_000L) {
             preferences.put(pl.jojczak.penmouses.core.common.utils.PrefKeys.S_PEN_OBSERVED_LEVEL, level)
