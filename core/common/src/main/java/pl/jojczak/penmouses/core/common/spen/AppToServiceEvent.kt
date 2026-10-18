@@ -12,6 +12,7 @@ object AppToServiceEvent {
         data object Stop : Event()
         data object PreferencesUpdated: Event()
         data object RecalibrateMotion : Event()
+        data object CalibrateRightwardMotion : Event()
     }
 
     enum class ModeStatus {
