@@ -15,6 +15,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +63,7 @@ internal fun SettingsMouseTab(
         onCustomCursorFileSelected = { viewModel.onViewAction(SettingsCursorViewAction.CustomCursorFileSelected(it))},
         onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
         onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) },
+        onRecalibrateMotion = { viewModel.onViewAction(SettingsMouseViewAction.RecalibrateMotion) },
         onBatteryOverlayEnabled = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayEnabled(it)) },
         onBatteryOverlayUnlocked = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayUnlocked(it)) }
     )
@@ -78,6 +80,7 @@ private fun SettingsMouseTabContent(
     onCustomCursorFileSelected: (Uri) -> Unit = {},
     onSPenSleepEnabledChange: (Boolean) -> Unit = {},
     onRealtimeDragChange: (Boolean) -> Unit = {},
+    onRecalibrateMotion: () -> Unit = {},
     onBatteryOverlayEnabled: (Boolean) -> Unit = {},
     onBatteryOverlayUnlocked: (Boolean) -> Unit = {}
 ) = LazyColumn(
@@ -103,6 +106,20 @@ private fun SettingsMouseTabContent(
             onPrefChanged = onPrefChanged,
         )
     }
+    horizontalDivider()
+    item {
+        TextButton(onClick = onRecalibrateMotion) {
+            Text(stringResource(R.string.settings_recalibrate_motion))
+        }
+    }
+    settingsSlider(
+        text = R.string.settings_axis_rotation,
+        value = viewState.axisRotation,
+        valueDisplay = { "${it.toInt()}°" },
+        prefKey = PrefKeys.MOUSE_AXIS_ROTATION,
+        onPrefChanging = onPrefChanging,
+        onPrefChanged = onPrefChanged
+    )
     horizontalDivider()
     item {
         Column(modifier = Modifier.padding(pad_m)) {
