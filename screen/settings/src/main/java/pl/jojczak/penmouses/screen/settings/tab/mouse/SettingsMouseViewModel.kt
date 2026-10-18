@@ -61,6 +61,9 @@ internal class SettingsMouseViewModel @Inject constructor(
             batteryOverlayEnabled = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
             batteryOverlayUnlocked = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED),
             batteryOverlayAlpha = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA),
+            batteryOverlayScale = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE),
+            batteryOverlayShowTime = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME),
+            batteryOverlayCompact = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT),
             batteryOverlayX = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
             batteryOverlayY = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
             batteryOverlayColor = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR),
@@ -90,6 +93,16 @@ internal class SettingsMouseViewModel @Inject constructor(
         is SettingsMouseViewAction.BatteryOverlayEnabled -> {
             updateState { it.copy(batteryOverlayEnabled = action.enabled) }
             preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY, action.enabled)
+            tryToPingService()
+        }
+        is SettingsMouseViewAction.BatteryOverlayCompact -> {
+            updateState { it.copy(batteryOverlayCompact = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT, action.enabled)
+            tryToPingService()
+        }
+        is SettingsMouseViewAction.BatteryOverlayShowTime -> {
+            updateState { it.copy(batteryOverlayShowTime = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME, action.enabled)
             tryToPingService()
         }
         is SettingsMouseViewAction.BatteryOverlayUnlocked -> {
@@ -131,6 +144,7 @@ internal class SettingsMouseViewModel @Inject constructor(
         }
 
         PrefKeys.MOUSE_DRAG_SEGMENT_MS -> updateState { it.copy(dragSegmentMs = action.value as Float) }
+        PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE -> updateState { it.copy(batteryOverlayScale = action.value as Float) }
         PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA -> updateState { it.copy(batteryOverlayAlpha = action.value as Float) }
         PrefKeys.MOUSE_BATTERY_OVERLAY_X -> updateState { it.copy(batteryOverlayX = action.value as Float) }
         PrefKeys.MOUSE_BATTERY_OVERLAY_Y -> updateState { it.copy(batteryOverlayY = action.value as Float) }
