@@ -6,6 +6,8 @@ import android.accessibilityservice.GestureDescription.StrokeDescription
 import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
 
 internal class AndroidDragBackend(
     private val dispatchGesture: (GestureDescription, GestureResultCallback?, Handler?) -> Boolean,
@@ -22,6 +24,7 @@ internal class AndroidDragBackend(
     }
 
     override fun dispatch(segment: RealtimeDragController.Segment, completed: (Boolean) -> Unit): Boolean {
+        val started = SystemClock.uptimeMillis()
         val path = Path().apply {
             moveTo(segment.from.x, segment.from.y)
             if (segment.to != segment.from) lineTo(segment.to.x, segment.to.y)
@@ -34,11 +37,18 @@ internal class AndroidDragBackend(
         val accepted = dispatchGesture(
             GestureDescription.Builder().addStroke(stroke).build(),
             object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription) = completed(true)
-                override fun onCancelled(gestureDescription: GestureDescription) = completed(false)
+                override fun onCompleted(gestureDescription: GestureDescription) {
+                    DiagnosticRecorder.record("gesture", "completed requestedMs=${segment.durationMs} elapsedMs=${SystemClock.uptimeMillis() - started} continuing=${segment.continuing}")
+                    completed(true)
+                }
+                override fun onCancelled(gestureDescription: GestureDescription) {
+                    DiagnosticRecorder.record("gesture", "cancelled afterMs=${SystemClock.uptimeMillis() - started}")
+                    completed(false)
+                }
             },
             handler,
         )
+        if (!accepted) DiagnosticRecorder.record("gesture", "dispatch rejected")
         if (accepted) {
             previous = stroke
             end = segment.to
