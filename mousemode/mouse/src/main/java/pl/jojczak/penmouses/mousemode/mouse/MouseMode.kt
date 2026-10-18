@@ -74,7 +74,7 @@ class MouseMode(
 
     private fun newDragController(): RealtimeDragController {
         val generation = ++dragGeneration
-        val backend = AndroidDragBackend(dispatchGesture)
+        val backend = AndroidDragBackend(dispatchGesture, preferences.get(PrefKeys.MOUSE_ADAPTIVE_DRAG))
         return RealtimeDragController(
             backend = backend,
             schedule = backend::schedule,
