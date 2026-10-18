@@ -39,11 +39,13 @@
     <string name="settings_scroll_experimental_mode">Power saving mode (Experimental!)</string>
     <string name="settings_scroll_experimental_mode_desc">S Pen will activate the gyroscope only after the button is pressed, which significantly saves the S Pen\'s battery but may interrupt the connection. Disable if scrolling suddenly stops working.</string>
     <string name="settings_spen_battery_overlay_title">S Pen status overlay</string>
-    <string name="settings_spen_battery_overlay_hint">Experimental Samsung settings battery reading. If unavailable, displays “—”. Shown when mouse mode is running.</string>
+    <string name="settings_spen_battery_overlay_hint">Last visible percentage from Settings → S Pen, captured by accessibility after you visit the screen once. The timestamp represents the last observation, not continuous battery telemetry.</string>
     <string name="settings_spen_battery_overlay_enable">Show overlay</string>
     <string name="settings_spen_battery_overlay_unlock">Unlock overlay drag with finger</string>
     <string name="settings_spen_battery_overlay_alpha">Overlay opacity: %s</string>
     <string name="settings_spen_battery_overlay_x">Horizontal position: %s</string>
     <string name="settings_spen_battery_overlay_y">Vertical position: %s</string>
     <string name="settings_spen_battery_overlay_color">Overlay color: %s</string>
+    <string name="settings_axis_rotation">Motion axis correction: %s</string>
+    <string name="settings_recalibrate_motion">Restart S Pen motion sensor listener</string>
 </resources>
