@@ -137,6 +137,54 @@ private fun SettingsMouseTabContent(
         sectionPreferences.edit().putBoolean("gestures", gesturesOpen).apply()
     }
     if (gesturesOpen) {
+    settingsSlider(
+        text = R.string.settings_s_pen_sensitivity_slider_label,
+        value = viewState.sPenSensitivity,
+        prefKey = PrefKeys.MOUSE_SENSITIVITY,
+        onPrefChanging = onPrefChanging,
+        onPrefChanged = onPrefChanged
+    )
+
+    horizontalDivider()
+
+    settingsSlider(
+        text = R.string.settings_mouse_acceleration,
+        value = viewState.mouseAcceleration,
+        valueDisplay = { "%.1f".format(it) },
+        prefKey = PrefKeys.MOUSE_ACCELERATION,
+        onPrefChanging = onPrefChanging,
+        onPrefChanged = onPrefChanged
+    )
+
+    horizontalDivider()
+
+
+    settingsSlider(
+        text = R.string.settings_button_hold_action,
+        value = viewState.holdAction,
+        valueDisplay = { action -> when (action.toInt()) {
+            1 -> "Menu kontekstowe"
+            2 -> "Dwuklik"
+            else -> "Lewe przeciąganie"
+        } },
+        prefKey = PrefKeys.MOUSE_HOLD_ACTION,
+        onPrefChanging = onPrefChanging,
+        onPrefChanged = onPrefChanged
+    )
+    if (viewState.holdAction >= 1f) {
+        settingsSlider(
+            text = R.string.settings_button_hold_threshold,
+            value = viewState.holdThresholdMs,
+            valueDisplay = { "${it.toInt()} ms" },
+            prefKey = PrefKeys.MOUSE_HOLD_THRESHOLD_MS,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged
+        )
+        item {
+            Text(stringResource(R.string.settings_button_hold_explainer),
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(pad_m))
+        }
+    }
     item {
         Row(modifier = Modifier.padding(pad_m).clip(RoundedCornerShape(radius_m))
             .clickable { onRealtimeDragChange(!viewState.realtimeDragEnabled) }) {
@@ -314,27 +362,6 @@ private fun SettingsMouseTabContent(
         text = R.string.settings_cursor_size_slider_label,
         value = viewState.cursorSize,
         prefKey = PrefKeys.MOUSE_CURSOR_SIZE,
-        onPrefChanging = onPrefChanging,
-        onPrefChanged = onPrefChanged
-    )
-
-    horizontalDivider()
-
-    settingsSlider(
-        text = R.string.settings_s_pen_sensitivity_slider_label,
-        value = viewState.sPenSensitivity,
-        prefKey = PrefKeys.MOUSE_SENSITIVITY,
-        onPrefChanging = onPrefChanging,
-        onPrefChanged = onPrefChanged
-    )
-
-    horizontalDivider()
-
-    settingsSlider(
-        text = R.string.settings_mouse_acceleration,
-        value = viewState.mouseAcceleration,
-        valueDisplay = { "%.1f".format(it) },
-        prefKey = PrefKeys.MOUSE_ACCELERATION,
         onPrefChanging = onPrefChanging,
         onPrefChanged = onPrefChanged
     )
