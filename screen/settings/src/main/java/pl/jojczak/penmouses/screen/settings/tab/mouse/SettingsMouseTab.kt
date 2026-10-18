@@ -1,5 +1,6 @@
 package pl.jojczak.penmouses.screen.settings.tab.mouse
 
+import android.content.Context
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -22,6 +24,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
@@ -87,7 +92,9 @@ internal fun SettingsMouseTab(
         onClearDiagnostics = { DiagnosticRecorder.clear() },
         onMarkIssue = { DiagnosticRecorder.record("USER_MARK", "user marked a cursor or drag problem") },
         onBatteryOverlayEnabled = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayEnabled(it)) },
-        onBatteryOverlayUnlocked = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayUnlocked(it)) }
+        onBatteryOverlayUnlocked = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayUnlocked(it)) },
+        onOverlayShowTime = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayShowTime(it)) },
+        onOverlayCompact = { viewModel.onViewAction(SettingsMouseViewAction.BatteryOverlayCompact(it)) }
     )
     // @formatter:on
 }
@@ -110,11 +117,26 @@ private fun SettingsMouseTabContent(
     onClearDiagnostics: () -> Unit = {},
     onMarkIssue: () -> Unit = {},
     onBatteryOverlayEnabled: (Boolean) -> Unit = {},
-    onBatteryOverlayUnlocked: (Boolean) -> Unit = {}
-) = LazyColumn(
+    onBatteryOverlayUnlocked: (Boolean) -> Unit = {},
+    onOverlayShowTime: (Boolean) -> Unit = {},
+    onOverlayCompact: (Boolean) -> Unit = {}
+) {
+    val sectionPreferences = LocalContext.current.getSharedPreferences("mouse_settings_sections", Context.MODE_PRIVATE)
+    var gesturesOpen by remember { mutableStateOf(sectionPreferences.getBoolean("gestures", true)) }
+    var axisOpen by remember { mutableStateOf(sectionPreferences.getBoolean("axes", false)) }
+    var overlayOpen by remember { mutableStateOf(sectionPreferences.getBoolean("overlay", true)) }
+    var diagnosticsOpen by remember { mutableStateOf(sectionPreferences.getBoolean("diagnostics", false)) }
+    var cursorOpen by remember { mutableStateOf(sectionPreferences.getBoolean("cursor", true)) }
+
+    LazyColumn(
     contentPadding = contentPadding,
     modifier = Modifier.fillMaxSize()
 ) {
+    settingsSectionHeader(R.string.settings_section_gestures, gesturesOpen) {
+        gesturesOpen = !gesturesOpen
+        sectionPreferences.edit().putBoolean("gestures", gesturesOpen).apply()
+    }
+    if (gesturesOpen) {
     item {
         Row(modifier = Modifier.padding(pad_m).clip(RoundedCornerShape(radius_m))
             .clickable { onRealtimeDragChange(!viewState.realtimeDragEnabled) }) {
@@ -143,7 +165,12 @@ private fun SettingsMouseTabContent(
             onPrefChanged = onPrefChanged,
         )
     }
-    horizontalDivider()
+    }
+    settingsSectionHeader(R.string.settings_section_axis, axisOpen) {
+        axisOpen = !axisOpen
+        sectionPreferences.edit().putBoolean("axes", axisOpen).apply()
+    }
+    if (axisOpen) {
     item {
         TextButton(onClick = onRecalibrateMotion) {
             Text(stringResource(R.string.settings_recalibrate_motion))
@@ -160,7 +187,12 @@ private fun SettingsMouseTabContent(
         onPrefChanging = onPrefChanging,
         onPrefChanged = onPrefChanged
     )
-    horizontalDivider()
+    }
+    settingsSectionHeader(R.string.settings_section_overlay, overlayOpen) {
+        overlayOpen = !overlayOpen
+        sectionPreferences.edit().putBoolean("overlay", overlayOpen).apply()
+    }
+    if (overlayOpen) {
     item {
         Column(modifier = Modifier.padding(pad_m)) {
             Text(stringResource(R.string.settings_spen_battery_overlay_title), style = MaterialTheme.typography.titleMedium)
@@ -170,6 +202,16 @@ private fun SettingsMouseTabContent(
                 Text(stringResource(R.string.settings_spen_battery_overlay_enable), modifier = Modifier.padding(pad_m))
             }
             if (viewState.batteryOverlayEnabled) {
+                Row(modifier = Modifier.clickable { onOverlayCompact(!viewState.batteryOverlayCompact) }) {
+                    Checkbox(checked = viewState.batteryOverlayCompact, onCheckedChange = onOverlayCompact)
+                    Text(stringResource(R.string.settings_overlay_compact), modifier = Modifier.padding(pad_m))
+                }
+                if (!viewState.batteryOverlayCompact) {
+                    Row(modifier = Modifier.clickable { onOverlayShowTime(!viewState.batteryOverlayShowTime) }) {
+                        Checkbox(checked = viewState.batteryOverlayShowTime, onCheckedChange = onOverlayShowTime)
+                        Text(stringResource(R.string.settings_overlay_time), modifier = Modifier.padding(pad_m))
+                    }
+                }
                 Row(modifier = Modifier.clickable { onBatteryOverlayUnlocked(!viewState.batteryOverlayUnlocked) }) {
                     Checkbox(checked = viewState.batteryOverlayUnlocked, onCheckedChange = onBatteryOverlayUnlocked)
                     Text(stringResource(R.string.settings_spen_battery_overlay_unlock), modifier = Modifier.padding(pad_m))
@@ -178,6 +220,14 @@ private fun SettingsMouseTabContent(
         }
     }
     if (viewState.batteryOverlayEnabled) {
+        settingsSlider(
+            text = R.string.settings_overlay_size,
+            value = viewState.batteryOverlayScale,
+            valueDisplay = { "${(it * 100).toInt()}%" },
+            prefKey = PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE,
+            onPrefChanging = onPrefChanging,
+            onPrefChanged = onPrefChanged
+        )
         settingsSlider(
             text = R.string.settings_spen_battery_overlay_alpha,
             value = viewState.batteryOverlayAlpha,
@@ -211,7 +261,12 @@ private fun SettingsMouseTabContent(
             onPrefChanged = onPrefChanged
         )
     }
-    horizontalDivider()
+    }
+    settingsSectionHeader(R.string.settings_section_diagnostics, diagnosticsOpen) {
+        diagnosticsOpen = !diagnosticsOpen
+        sectionPreferences.edit().putBoolean("diagnostics", diagnosticsOpen).apply()
+    }
+    if (diagnosticsOpen) {
     item {
         Column(modifier = Modifier.padding(pad_m)) {
             Text(stringResource(R.string.settings_diagnostics_title), style = MaterialTheme.typography.titleMedium)
@@ -229,7 +284,12 @@ private fun SettingsMouseTabContent(
             }
         }
     }
-    horizontalDivider()
+    }
+    settingsSectionHeader(R.string.settings_section_cursor, cursorOpen) {
+        cursorOpen = !cursorOpen
+        sectionPreferences.edit().putBoolean("cursor", cursorOpen).apply()
+    }
+    if (cursorOpen) {
     cursorIconComponent(
         cursorType = viewState.cursorType,
         modeStatus = ModeStatus.Mouse,
@@ -296,6 +356,26 @@ private fun SettingsMouseTabContent(
         sPenSleepEnabled = viewState.sPenSleepEnabled,
         onSPenSleepEnabledChange = onSPenSleepEnabledChange
     )
+    }
+    }
+}
+
+private fun LazyListScope.settingsSectionHeader(
+    title: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) = item {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(pad_m)
+    ) {
+        Text(
+            stringResource(title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(if (expanded) "▼" else "▶", style = MaterialTheme.typography.titleMedium)
+    }
 }
 
 private fun LazyListScope.sPenSleepCheckBox(
