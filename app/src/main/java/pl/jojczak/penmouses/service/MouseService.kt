@@ -134,7 +134,8 @@ class MouseService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.e(TAG, "Accessibility service interrupted")
-        DiagnosticRecorder.record("service", "accessibility interrupted")
+        val power = getSystemService(android.os.PowerManager::class.java)
+        DiagnosticRecorder.record("service", "accessibility interrupted active=${currentMode?.javaClass?.simpleName ?: "none"} interactive=${power?.isInteractive}")
         stopMode()
     }
 
@@ -147,7 +148,24 @@ class MouseService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || !(preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY) || preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED))) return
+        if (event == null) return
+        // Detect the known Samsung Air Actions warning without retaining any UI text.
+        // A third-party service cannot prevent the Samsung system warning from displaying.
+        if (preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED) &&
+            event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            val pkgName = event.packageName?.toString().orEmpty()
+            if (pkgName == "com.samsung.android.service.aircommand" ||
+                pkgName == "com.android.systemui") {
+                val unsupported = event.text.any { message ->
+                    val lower = message?.toString()?.lowercase(java.util.Locale.ROOT).orEmpty()
+                    lower.contains("nie obsługuje tej akcji") ||
+                        lower.contains("does not support this action") ||
+                        lower.contains("doesn't support this action")
+                }
+                if (unsupported) DiagnosticRecorder.record("system-air-actions", "unsupportedActionWarning detected package=$pkgName")
+            }
+        }
+        if (!(preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY) || preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED))) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg != "com.android.settings" && pkg != "com.samsung.android.service.aircommand") return
         val now = android.os.SystemClock.uptimeMillis()
