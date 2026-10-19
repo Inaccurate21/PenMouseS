@@ -431,14 +431,20 @@ class MouseMode(
             lastDiagnosticMotionMs = SystemClock.uptimeMillis()
             DiagnosticRecorder.record("motion", "deltaX=$deltaX deltaY=$deltaY timestamp=$timeStamp pxX=${movement.dx} pxY=${movement.dy} axis=$prefRotation displayRotation=${getDisplay().rotation}")
         }
-        val distancePx = hypot(movement.dx, movement.dy)
-        val scale = if (distancePx > MAX_PER_SAMPLE_PIXELS) MAX_PER_SAMPLE_PIXELS / distancePx else 1f
-        if (scale < 1f) {
-            DiagnosticRecorder.record("motion-anomaly", "bounded rawDistancePx=$distancePx factor=$scale dx=${movement.dx} dy=${movement.dy}")
+        val stable = MotionJumpLimiter.stabilize(movement.dx, movement.dy)
+        if (stable.rawPixels > 600f) {
+            DiagnosticRecorder.record(
+                "motion-anomaly",
+                "softLimited rawDistancePx=${stable.rawPixels} effectivePx=${stable.limitedPixels} " +
+                    "rawX=${movement.dx} rawY=${movement.dy} " +
+                    "effectiveX=${stable.dx} effectiveY=${stable.dy}"
+            )
         }
-        shortcutRouter?.onPointerMotion(distancePx * scale)
-        motionX = ((motionX ?: position.x.toFloat()) + movement.dx * scale).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
-        motionY = ((motionY ?: position.y.toFloat()) + movement.dy * scale).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
+        shortcutRouter?.onPointerMotion(stable.limitedPixels)
+        motionX = ((motionX ?: position.x.toFloat()) + stable.dx)
+            .coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
+        motionY = ((motionY ?: position.y.toFloat()) + stable.dy)
+            .coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
             x = motionX!!.roundToInt()
             y = motionY!!.roundToInt()
@@ -605,7 +611,6 @@ class MouseMode(
 
     companion object {
         private const val CURSOR_MOVE_THRESHOLD_PX = 50
-        private const val MAX_PER_SAMPLE_PIXELS = 850f
         private const val SLEEP_DELAY_MS = 60000L // 60s
         private const val SLEEP_DELAY_MS_HIDING_DISABLED = 300000L // 5min
     }
