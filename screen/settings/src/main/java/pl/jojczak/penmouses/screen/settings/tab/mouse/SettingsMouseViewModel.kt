@@ -50,6 +50,7 @@ internal class SettingsMouseViewModel @Inject constructor(
             sPenSensitivity = preferencesManager.get(PrefKeys.MOUSE_SENSITIVITY),
             mouseAcceleration = preferencesManager.get(PrefKeys.MOUSE_ACCELERATION),
             holdAction = preferencesManager.get(PrefKeys.MOUSE_HOLD_ACTION),
+            doublePressAction = preferencesManager.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION),
             holdThresholdMs = preferencesManager.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS),
             axisRotation = preferencesManager.get(PrefKeys.MOUSE_AXIS_ROTATION),
             diagnosticsEnabled = preferencesManager.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
@@ -128,6 +129,7 @@ internal class SettingsMouseViewModel @Inject constructor(
     override fun updatePreference(action: SettingsViewAction.UpdatePreference<*>) = when(action.key) {
         PrefKeys.MOUSE_AXIS_ROTATION -> updateState { it.copy(axisRotation = action.value as Float) }
         PrefKeys.MOUSE_HOLD_ACTION -> updateState { it.copy(holdAction = action.value as Float) }
+        PrefKeys.MOUSE_DOUBLE_PRESS_ACTION -> updateState { it.copy(doublePressAction = action.value as Float) }
         PrefKeys.MOUSE_HOLD_THRESHOLD_MS -> updateState { it.copy(holdThresholdMs = action.value as Float) }
         PrefKeys.MOUSE_ACCELERATION -> updateState { it.copy(mouseAcceleration = action.value as Float) }
 
