@@ -75,6 +75,7 @@ class MouseService : AccessibilityService() {
 
     private fun stopCurrentStartNew(newMode: ModeStatus) {
         modeChangeJob?.cancel()
+        AppToServiceEvent.sPenReady.value = false
         stopMode(stopMode = ModeStatus.Loading)
         modeChangeJob = serviceScope.launch {
             delay(timeMillis = DELAY_BETWEEN_MODES)
@@ -93,6 +94,7 @@ class MouseService : AccessibilityService() {
             sPenManager = sPenManager,
             stopService = ::stopMode,
             context = this,
+            globalAction = ::performGlobalAction,
         )
 
         ModeStatus.Point -> PointMode(
@@ -123,6 +125,7 @@ class MouseService : AccessibilityService() {
         DiagnosticRecorder.record("service", "stop mode=$currentModeName -> $stopMode")
         val mode = currentMode
         currentMode = null
+        AppToServiceEvent.sPenReady.value = false
         mode?.stop()
         sPenManager.disconnect()
         AppToServiceEvent.serviceStatus.tryEmit(value = stopMode)
