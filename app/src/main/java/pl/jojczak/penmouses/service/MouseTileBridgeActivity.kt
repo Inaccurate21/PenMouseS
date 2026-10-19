@@ -54,7 +54,7 @@ class MouseTileBridgeActivity : Activity() {
             DiagnosticRecorder.record("quick-tile", "S Pen ready; close bridge")
             handler.removeCallbacks(timeout)
             // Allow the SDK to complete listener setup before activity finishes.
-            handler.postDelayed({ if (!isFinishing) finish() }, 900L)
+            handler.postDelayed({ if (!isFinishing) finish() }, 1_800L)
         }
         handler.postDelayed(timeout, 11_000L)
         handler.postDelayed({
