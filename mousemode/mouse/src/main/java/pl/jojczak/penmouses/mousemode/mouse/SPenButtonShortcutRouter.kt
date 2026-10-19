@@ -25,12 +25,14 @@ internal class SPenButtonShortcutRouter(
     private var dragging = false
     private var holdTriggered = false
     private var pendingSingle = false
+    private var movementSincePress = 0f
     private var cancelPressTimer: (() -> Unit)? = null
     private var cancelPendingSingle: (() -> Unit)? = null
 
     fun down() {
         if (pressed) return
         pressed = true
+        movementSincePress = 0f
         dragging = false
         holdTriggered = false
         secondPress = pendingSingle
@@ -61,6 +63,24 @@ internal class SPenButtonShortcutRouter(
             dragging = true
             dragStart()
         }
+    }
+
+    /**
+     * A real pointer movement during a held press is a drag, not a double click.
+     * This removes the fixed 120 ms startup delay for fast gallery photo swipes.
+     * Small hand tremors (< 28 px total) are intentionally ignored.
+     */
+    fun onPointerMotion(distancePx: Float) {
+        if (!pressed || dragging || holdTriggered ||
+            holdAction != 0 || doubleAction == 0 || !distancePx.isFinite()) return
+        movementSincePress += distancePx.coerceAtLeast(0f)
+        if (movementSincePress < 28f) return
+        cancelPressTimer?.invoke()
+        cancelPressTimer = null
+        if (secondPress) singleTap()
+        secondPress = false
+        dragging = true
+        dragStart()
     }
 
     fun up() {
@@ -97,6 +117,7 @@ internal class SPenButtonShortcutRouter(
         cancelPendingSingle = null
         pressed = false
         secondPress = false
+        movementSincePress = 0f
         pendingSingle = false
         dragging = false
         holdTriggered = false
