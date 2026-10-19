@@ -7,6 +7,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
+import pl.jojczak.penmouses.core.common.utils.GestureTraceRecorder
 import pl.jojczak.penmouses.core.common.utils.CursorType
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
@@ -54,6 +55,7 @@ internal class SettingsMouseViewModel @Inject constructor(
             holdThresholdMs = preferencesManager.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS),
             axisRotation = preferencesManager.get(PrefKeys.MOUSE_AXIS_ROTATION),
             diagnosticsEnabled = preferencesManager.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
+            gestureTraceEnabled = preferencesManager.get(PrefKeys.MOUSE_GESTURE_TRACE_ENABLED),
             cursorHideDelay = preferencesManager.get(PrefKeys.MOUSE_CURSOR_HIDE_DELAY),
             sPenSleepEnabled = preferencesManager.get(PrefKeys.MOUSE_SLEEP_ENABLED),
             cursorSize = preferencesManager.get(PrefKeys.MOUSE_CURSOR_SIZE),
@@ -84,6 +86,11 @@ internal class SettingsMouseViewModel @Inject constructor(
             updateState { it.copy(diagnosticsEnabled = action.enabled) }
             preferencesManager.put(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED, action.enabled)
             DiagnosticRecorder.setEnabled(action.enabled)
+        }
+        is SettingsMouseViewAction.GestureTraceEnabled -> {
+            updateState { it.copy(gestureTraceEnabled = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_GESTURE_TRACE_ENABLED, action.enabled)
+            GestureTraceRecorder.setEnabled(action.enabled)
         }
         is SettingsMouseViewAction.CalibrateRightwardMotion -> {
             AppToServiceEvent.event.tryEmit(AppToServiceEvent.Event.CalibrateRightwardMotion)
