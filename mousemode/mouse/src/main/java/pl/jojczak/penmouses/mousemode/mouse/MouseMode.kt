@@ -476,7 +476,7 @@ class MouseMode(
     override fun preferencesUpdated() {
         super.preferencesUpdated()
         legacyButtonDown = false
-        holdRecognizer.cancel()
+        shortcutRouter?.cancel()
         mainHandler.removeCallbacks(updateStrokePathJob)
         cursorAnimator.releaseCursor()
         ++dragGeneration
