@@ -35,6 +35,7 @@
             android:name=".service.MouseTileBridgeActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:taskAffinity="${applicationId}.tile"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <service
