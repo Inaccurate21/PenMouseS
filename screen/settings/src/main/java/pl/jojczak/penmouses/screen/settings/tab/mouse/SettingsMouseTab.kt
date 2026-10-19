@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.annotation.StringRes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
@@ -160,17 +165,35 @@ private fun SettingsMouseTabContent(
     horizontalDivider()
 
 
-    settingsSlider(
-        text = R.string.settings_button_hold_action,
-        value = viewState.holdAction,
-        valueDisplay = { action -> when (action.toInt()) {
-            1 -> "Menu kontekstowe"
-            2 -> "Dwuklik"
-            else -> "Lewe przeciąganie"
-        } },
-        prefKey = PrefKeys.MOUSE_HOLD_ACTION,
-        onPrefChanging = onPrefChanging,
-        onPrefChanged = onPrefChanged
+    shortcutDropdown(
+        label = R.string.settings_button_hold_action,
+        selected = viewState.holdAction.toInt(),
+        choices = listOf(
+            0 to R.string.settings_button_action_drag,
+            1 to R.string.settings_button_action_context,
+            2 to R.string.settings_button_action_doubletap,
+            3 to R.string.settings_button_action_back,
+            4 to R.string.settings_button_action_home,
+        ),
+        onSelected = { action ->
+            onPrefChanging(PrefKeys.MOUSE_HOLD_ACTION, action.toFloat())
+            onPrefChanged(PrefKeys.MOUSE_HOLD_ACTION, action.toFloat())
+        }
+    )
+    shortcutDropdown(
+        label = R.string.settings_button_double_action,
+        selected = viewState.doublePressAction.toInt(),
+        choices = listOf(
+            0 to R.string.settings_button_action_standard_double,
+            1 to R.string.settings_button_action_context,
+            2 to R.string.settings_button_action_doubletap,
+            3 to R.string.settings_button_action_back,
+            4 to R.string.settings_button_action_home,
+        ),
+        onSelected = { action ->
+            onPrefChanging(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION, action.toFloat())
+            onPrefChanged(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION, action.toFloat())
+        }
     )
     if (viewState.holdAction >= 1f) {
         settingsSlider(
@@ -183,6 +206,12 @@ private fun SettingsMouseTabContent(
         )
         item {
             Text(stringResource(R.string.settings_button_hold_explainer),
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(pad_m))
+        }
+    }
+    if (viewState.doublePressAction != 0f) {
+        item {
+            Text(stringResource(R.string.settings_button_double_explainer),
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(pad_m))
         }
     }
@@ -389,6 +418,38 @@ private fun SettingsMouseTabContent(
         onSPenSleepEnabledChange = onSPenSleepEnabledChange
     )
     }
+    }
+}
+
+private fun LazyListScope.shortcutDropdown(
+    @StringRes label: Int,
+    selected: Int,
+    choices: List<Pair<Int, Int>>,
+    onSelected: (Int) -> Unit
+) = item {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().padding(pad_m)) {
+        Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val current = choices.firstOrNull { it.first == selected } ?: choices.first()
+                Text(stringResource(current.second))
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                choices.forEach { (action, title) ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(title)) },
+                        onClick = {
+                            expanded = false
+                            onSelected(action)
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
