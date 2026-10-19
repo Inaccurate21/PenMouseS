@@ -65,6 +65,37 @@ class MotionBurstGovernorTest {
         assertTrue(reversed.dx > 0f && reversed.dy < 0f)
     }
 
+    @Test fun recordedS24UltraMotionBurstRemainsBoundedOverTime() {
+        // 10:39:39 had four back-to-back large deltas within about 130ms.
+        val limiter = subject()
+        val recorded = listOf(
+            -534.64f to 859.36f,
+            -562.52f to 831.48f,
+            -668.3f to 817.54f,
+            -271.42f to 805.24f,
+        )
+        var travelled = 0f
+        for ((dx, dy) in recorded) {
+            val frame = MotionJumpLimiter.stabilize(dx, dy)
+            val applied = limiter.filter(frame.dx, frame.dy)
+            travelled += applied.acceptedPixels
+            now += 43L
+        }
+        // Previous stateless soft limiter applied >1600px in this burst.
+        assertTrue(travelled > 250f)
+        assertTrue(travelled < 385f)
+    }
+
+    @Test fun slowSamplingKeepsSmallCursorMovementUnchanged() {
+        val limiter = subject()
+        repeat(10) {
+            val frame = limiter.filter(40f, -16f)
+            assertEquals(40f, frame.dx, 0.001f)
+            assertEquals(-16f, frame.dy, 0.001f)
+            now += 170L
+        }
+    }
+
     @Test fun invalidSampleAndClockAnomaliesDoNotProduceJump() {
         val limiter = subject()
         assertEquals(0f, limiter.filter(Float.NaN, 10f).acceptedPixels, 0f)
