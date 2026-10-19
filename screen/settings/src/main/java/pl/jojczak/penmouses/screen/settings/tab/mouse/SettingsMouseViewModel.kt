@@ -62,6 +62,7 @@ internal class SettingsMouseViewModel @Inject constructor(
             cursorAlpha = preferencesManager.get(PrefKeys.MOUSE_CURSOR_ALPHA),
             realtimeDragEnabled = preferencesManager.get(PrefKeys.MOUSE_REALTIME_DRAG),
             adaptiveDragEnabled = preferencesManager.get(PrefKeys.MOUSE_ADAPTIVE_DRAG),
+            captureLateMotionEnabled = preferencesManager.get(PrefKeys.MOUSE_CAPTURE_LATE_MOTION),
             dragSegmentMs = preferencesManager.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS),
             batteryOverlayEnabled = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
             batteryOverlayUnlocked = preferencesManager.get(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED),
@@ -118,6 +119,11 @@ internal class SettingsMouseViewModel @Inject constructor(
         is SettingsMouseViewAction.BatteryOverlayUnlocked -> {
             updateState { it.copy(batteryOverlayUnlocked = action.unlocked) }
             preferencesManager.put(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED, action.unlocked)
+            tryToPingService()
+        }
+        is SettingsMouseViewAction.CaptureLateMotionEnabled -> {
+            updateState { it.copy(captureLateMotionEnabled = action.enabled) }
+            preferencesManager.put(PrefKeys.MOUSE_CAPTURE_LATE_MOTION, action.enabled)
             tryToPingService()
         }
         is SettingsMouseViewAction.AdaptiveDragEnabled -> {
