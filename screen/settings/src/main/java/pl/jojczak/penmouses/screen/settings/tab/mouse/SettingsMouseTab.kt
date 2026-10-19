@@ -90,6 +90,7 @@ internal fun SettingsMouseTab(
         onSPenSleepEnabledChange = { viewModel.onViewAction(SettingsMouseViewAction.SPenSleepEnabled(it)) },
         onRealtimeDragChange = { viewModel.onViewAction(SettingsMouseViewAction.RealtimeDragEnabled(it)) },
         onAdaptiveDragChange = { viewModel.onViewAction(SettingsMouseViewAction.AdaptiveDragEnabled(it)) },
+        onLateMotionChange = { viewModel.onViewAction(SettingsMouseViewAction.CaptureLateMotionEnabled(it)) },
         onRecalibrateMotion = { viewModel.onViewAction(SettingsMouseViewAction.RecalibrateMotion) },
         onCalibrateRightward = { viewModel.onViewAction(SettingsMouseViewAction.CalibrateRightwardMotion) },
         onDiagnosticsEnabled = { viewModel.onViewAction(SettingsMouseViewAction.DiagnosticsEnabled(it)) },
@@ -116,6 +117,7 @@ private fun SettingsMouseTabContent(
     onSPenSleepEnabledChange: (Boolean) -> Unit = {},
     onRealtimeDragChange: (Boolean) -> Unit = {},
     onAdaptiveDragChange: (Boolean) -> Unit = {},
+    onLateMotionChange: (Boolean) -> Unit = {},
     onRecalibrateMotion: () -> Unit = {},
     onCalibrateRightward: () -> Unit = {},
     onDiagnosticsEnabled: (Boolean) -> Unit = {},
@@ -228,6 +230,20 @@ private fun SettingsMouseTabContent(
         }
     }
     if (viewState.realtimeDragEnabled) {
+        item {
+            Row(modifier = Modifier.padding(pad_m)
+                .clickable { onLateMotionChange(!viewState.captureLateMotionEnabled) }) {
+                Checkbox(
+                    checked = viewState.captureLateMotionEnabled,
+                    onCheckedChange = onLateMotionChange
+                )
+                Column {
+                    Text(stringResource(R.string.settings_capture_late_motion))
+                    Text(stringResource(R.string.settings_capture_late_motion_info),
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         item {
             Row(modifier = Modifier.padding(pad_m).clickable { onAdaptiveDragChange(!viewState.adaptiveDragEnabled) }) {
                 Checkbox(checked = viewState.adaptiveDragEnabled, onCheckedChange = onAdaptiveDragChange)
