@@ -57,8 +57,42 @@ class MouseMode(
     private val airMotionAcceleration = AirMotionAcceleration()
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
-    private var realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
+
+    private data class DragSettings(
+        val enabled: Boolean,
+        val durationMs: Long,
+        val adaptive: Boolean,
+        val lateMotion: Boolean,
+    )
+    private fun readDragSettings() = DragSettings(
+        preferences.get(PrefKeys.MOUSE_REALTIME_DRAG),
+        preferences.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS).toLong(),
+        preferences.get(PrefKeys.MOUSE_ADAPTIVE_DRAG),
+        preferences.get(PrefKeys.MOUSE_CAPTURE_LATE_MOTION),
+    )
+    private var dragSettings = readDragSettings()
+    private var pendingDragSettings: DragSettings? = null
+    private var realtimeEnabled = dragSettings.enabled
     private var dragController: RealtimeDragController? = null
+    private var cachedCursorStyle = Triple(
+        preferences.get(PrefKeys.MOUSE_CURSOR_TYPE),
+        preferences.get(PrefKeys.MOUSE_CURSOR_SIZE),
+        preferences.get(PrefKeys.MOUSE_CURSOR_ALPHA),
+    )
+    private var cachedOverlayStyle: List<Any> = readOverlayStyle()
+    private fun readOverlayStyle(): List<Any> = listOf(
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR),
+    )
+    private var prefHoldThreshold = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS)
+
     private val sPenBatteryOverlay = SPenBatteryOverlay(context, preferences)
     private var legacyButtonDown = false
     private var ignoreUntilRelease = false
@@ -82,14 +116,14 @@ class MouseMode(
         }
     }
 
-    private fun newDragController(): RealtimeDragController {
+    private fun newDragController(settings: DragSettings = dragSettings): RealtimeDragController {
         val generation = ++dragGeneration
-        val backend = AndroidDragBackend(dispatchGesture, preferences.get(PrefKeys.MOUSE_ADAPTIVE_DRAG))
+        val backend = AndroidDragBackend(dispatchGesture, settings.adaptive)
         return RealtimeDragController(
             backend = backend,
             schedule = backend::schedule,
-            segmentDurationMs = preferences.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS).toLong(),
-            releaseGraceMs = if (preferences.get(PrefKeys.MOUSE_CAPTURE_LATE_MOTION)) 140L else 0L,
+            segmentDurationMs = settings.durationMs,
+            releaseGraceMs = if (settings.lateMotion) 140L else 0L,
             clockMs = SystemClock::uptimeMillis,
             onReleaseGrace = { detail ->
                 DiagnosticRecorder.record("late-motion", detail)
@@ -101,12 +135,30 @@ class MouseMode(
                 GestureTraceRecorder.dragFinished(result.name)
                 ignoreUntilRelease = sPenManager.isSPenButtonDown
                 hideCursor()
+                pendingDragSettings?.let { pending ->
+                    applyDragSettings(pending)
+                }
                 if (result != RealtimeDragController.Result.RELEASED &&
                     result != RealtimeDragController.Result.CLOSED) {
                     Toast.makeText(context, context.getString(coreR.string.realtime_drag_interrupted), Toast.LENGTH_LONG).show()
                 }
             },
         )
+    }
+
+    private fun applyDragSettings(newSettings: DragSettings) {
+        if (dragController?.isActive == true) {
+            pendingDragSettings = newSettings
+            DiagnosticRecorder.record("preferences", "deferred drag config until release")
+            return
+        }
+        pendingDragSettings = null
+        ++dragGeneration
+        dragController?.close()
+        dragSettings = newSettings
+        realtimeEnabled = newSettings.enabled
+        dragController = if (newSettings.enabled) newDragController(newSettings) else null
+        DiagnosticRecorder.record("preferences", "drag engine updated settings=$newSettings")
     }
 
     private fun buildShortcutRouter(): SPenButtonShortcutRouter? {
@@ -487,29 +539,68 @@ class MouseMode(
     }
 
     override fun preferencesUpdated() {
-        super.preferencesUpdated()
-        legacyButtonDown = false
-        shortcutRouter?.cancel()
-        mainHandler.removeCallbacks(updateStrokePathJob)
-        cursorAnimator.releaseCursor()
-        ++dragGeneration
-        dragController?.close()
-        ignoreUntilRelease = sPenManager.isSPenButtonDown
-        realtimeEnabled = preferences.get(PrefKeys.MOUSE_REALTIME_DRAG)
-        dragController = if (realtimeEnabled) newDragController() else null
-        sPenBatteryOverlay.refresh()
+        // Updating acceleration/sensitivity must not reset either sensor velocity
+        // estimation or the in-flight gesture. Previous code rebuilt everything
+        // for every slider change, including cursor bitmap and S Pen acceleration.
+        val newSensitivity = cursorPreferences.getSensitivity()
+        val newAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+        val newRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
+
+        val newVisual = Triple(
+            preferences.get(PrefKeys.MOUSE_CURSOR_TYPE),
+            preferences.get(PrefKeys.MOUSE_CURSOR_SIZE),
+            preferences.get(PrefKeys.MOUSE_CURSOR_ALPHA),
+        )
+        if (cachedCursorStyle != newVisual) {
+            cachedCursorStyle = newVisual
+            super.preferencesUpdated()
+            cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
+            DiagnosticRecorder.record("preferences", "cursor appearance updated")
+        }
+
+        val newOverlay = readOverlayStyle()
+        if (newOverlay != cachedOverlayStyle) {
+            cachedOverlayStyle = newOverlay
+            sPenBatteryOverlay.refresh()
+        }
+
+        val newDrag = readDragSettings()
+        if (newDrag != (pendingDragSettings ?: dragSettings)) {
+            applyDragSettings(newDrag)
+        }
+
+        val newHold = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
+        val newDouble = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+        val newThreshold = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS)
+        if (newHold != buttonHoldAction || newDouble != doubleButtonAction ||
+            newThreshold != prefHoldThreshold) {
+            shortcutRouter?.cancel()
+            buttonHoldAction = newHold
+            doubleButtonAction = newDouble
+            prefHoldThreshold = newThreshold
+            shortcutRouter = buildShortcutRouter()
+            DiagnosticRecorder.record("preferences", "button shortcuts updated")
+        }
+
+        if (newRotation != prefRotation) {
+            prefRotation = newRotation
+            airMotionAcceleration.reset()
+            DiagnosticRecorder.record("preferences", "axis changed; sensor velocity reinitialized")
+        }
+        val sensitivityChanged = newSensitivity != prefSensitivity
+        val accelerationChanged = newAcceleration != prefAcceleration
+        prefSensitivity = newSensitivity
+        prefAcceleration = newAcceleration
+
         prefHideDelay = cursorPreferences.getHideDelay()
-        prefSensitivity = cursorPreferences.getSensitivity()
-        prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
-        buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
-        doubleButtonAction = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
-        shortcutRouter = buildShortcutRouter()
-        prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
-        DiagnosticRecorder.record("preferences", "axis=$prefRotation sensitivity=$prefSensitivity acceleration=$prefAcceleration")
-        airMotionAcceleration.reset()
         prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
-        cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
-        pingCursor()
+
+        DiagnosticRecorder.record(
+            "preferences",
+            "axis=$prefRotation sensitivity=$prefSensitivity acceleration=$prefAcceleration " +
+                "sensChanged=$sensitivityChanged accelChanged=$accelerationChanged " +
+                "sensorReset=false dragActive=${dragController?.isActive == true}"
+        )
     }
 
     companion object {
