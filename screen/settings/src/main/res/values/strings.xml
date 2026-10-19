@@ -80,4 +80,6 @@
     <string name="settings_button_action_back">Back</string>
     <string name="settings_button_action_home">Home screen</string>
     <string name="settings_button_double_explainer">With a custom double-press action, a single click waits up to 280 ms for the second press. Ordinary dragging is available after a 120 ms hold. Leave both actions at defaults for immediate drag.</string>
+    <string name="settings_diagnostics_trace">Detailed gesture path and Gallery response</string>
+    <string name="settings_diagnostics_trace_info">Records touch coordinates sent to Android, timings, and Samsung Gallery scroll/content change event types. No photos or text. UI responses are not proof an image changed. Enable for testing only.</string>
 </resources>
