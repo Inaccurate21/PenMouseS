@@ -67,7 +67,8 @@ class MouseMode(
     private var dragGeneration = 0L
     private var lastDiagnosticMotionMs = 0L
     private var buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
-    private var holdRecognizer = buildHoldRecognizer()
+    private var doubleButtonAction = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+    private var shortcutRouter: SPenButtonShortcutRouter? = buildShortcutRouter()
     private var rightwardCalibration: RightwardMotionCalibration? = null
     private var finishCalibration: Runnable? = null
 
@@ -101,22 +102,46 @@ class MouseMode(
         )
     }
 
-    private fun buildHoldRecognizer() = ButtonHoldRecognizer(
-        schedule = { duration, action ->
-            val task = Runnable { action() }
-            mainHandler.postDelayed(task, duration)
-            val cancel: () -> Unit = { mainHandler.removeCallbacks(task) }
-            cancel
-        },
-        thresholdMs = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS).toLong(),
-        onHold = {
-            DiagnosticRecorder.record("hold", "activated action=$buttonHoldAction")
-            when (buttonHoldAction) {
-                1 -> performTouchAtCursor(550L)
-                2 -> performDoubleTapAtCursor()
+    private fun buildShortcutRouter(): SPenButtonShortcutRouter? {
+        if (buttonHoldAction == 0 && doubleButtonAction == 0) return null
+        return SPenButtonShortcutRouter(
+            holdAction = buttonHoldAction,
+            doubleAction = doubleButtonAction,
+            holdThresholdMs = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS).toLong(),
+            schedule = { duration, callback ->
+                val task = Runnable { callback() }
+                mainHandler.postDelayed(task, duration)
+                val cancel: () -> Unit = { mainHandler.removeCallbacks(task) }
+                cancel
+            },
+            dragStart = { handleDefaultButtonEvent(ButtonEvent.ACTION_DOWN) },
+            dragRelease = { handleDefaultButtonEvent(ButtonEvent.ACTION_UP) },
+            singleTap = { performTouchAtCursor(55L) },
+            holdShortcut = { action ->
+                DiagnosticRecorder.record("button-shortcut", "hold action=$action")
+                performShortcut(action)
+            },
+            doubleShortcut = { action ->
+                DiagnosticRecorder.record("button-shortcut", "double action=$action")
+                performShortcut(action)
+            }
+        )
+    }
+
+    private fun performShortcut(action: Int) {
+        when (action) {
+            1 -> performTouchAtCursor(600L) // Android context menu via long-touch
+            2 -> performDoubleTapAtCursor()
+            3 -> {
+                val accepted = globalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                DiagnosticRecorder.record("button-shortcut", "BACK success=$accepted")
+            }
+            4 -> {
+                val accepted = globalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+                DiagnosticRecorder.record("button-shortcut", "HOME success=$accepted")
             }
         }
-    )
+    }
 
     /** Accessibility gestures are touchscreen input, not native mouse secondary button events. */
     private fun performTouchAtCursor(durationMs: Long) {
@@ -248,7 +273,7 @@ class MouseMode(
         finishCalibration?.let(mainHandler::removeCallbacks)
         finishCalibration = null
         rightwardCalibration = null
-        holdRecognizer.cancel()
+        shortcutRouter?.cancel()
         DiagnosticRecorder.record("mode", "stop mouse")
         AppToServiceEvent.sPenReady.value = false
         ++dragGeneration
@@ -268,35 +293,27 @@ class MouseMode(
 
     private fun onButtonEvent(@ButtonAction type: Int, timeStamp: Long) {
         if (!canStartJobs) return
-        DiagnosticRecorder.record("button", "type=$type realtime=$realtimeEnabled timestamp=$timeStamp")
+        DiagnosticRecorder.record("button", "type=$type hold=$buttonHoldAction double=$doubleButtonAction realtime=$realtimeEnabled timestamp=$timeStamp")
         if (type == ButtonEvent.ACTION_UP && ignoreUntilRelease) {
             ignoreUntilRelease = false
             return
         }
         if (ignoreUntilRelease) return
-        if (buttonHoldAction != 0) {
-            when (type) {
-                ButtonEvent.ACTION_DOWN -> {
-                    showCursor()
-                    if (holdRecognizer.press()) {
-                        cursorAnimator.clickCursor()
-                        DiagnosticRecorder.record("hold", "pressed mode=$buttonHoldAction")
-                    }
-                }
-                ButtonEvent.ACTION_UP -> {
-                    val shortTap = holdRecognizer.release()
-                    cursorAnimator.releaseCursor()
-                    if (shortTap) {
-                        performTouchAtCursor(55L)
-                        DiagnosticRecorder.record("hold", "shortTap")
-                    } else {
-                        DiagnosticRecorder.record("hold", "release after hold / unmatched")
-                    }
-                    hideCursor()
-                }
+        val router = shortcutRouter
+        if (router != null) {
+            if (type == ButtonEvent.ACTION_DOWN) {
+                showCursor()
+                router.down()
+            } else if (type == ButtonEvent.ACTION_UP) {
+                router.up()
+                hideCursor()
             }
             return
         }
+        handleDefaultButtonEvent(type)
+    }
+
+    private fun handleDefaultButtonEvent(type: Int) {
         if (realtimeEnabled) {
             if (type == ButtonEvent.ACTION_DOWN) {
                 showCursor()
@@ -472,7 +489,8 @@ class MouseMode(
         prefSensitivity = cursorPreferences.getSensitivity()
         prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
         buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
-        holdRecognizer = buildHoldRecognizer()
+        doubleButtonAction = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+        shortcutRouter = buildShortcutRouter()
         prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
         DiagnosticRecorder.record("preferences", "axis=$prefRotation sensitivity=$prefSensitivity acceleration=$prefAcceleration")
         airMotionAcceleration.reset()
