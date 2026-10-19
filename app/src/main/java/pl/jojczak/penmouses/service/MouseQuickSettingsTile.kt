@@ -58,21 +58,37 @@ class MouseQuickSettingsTile : TileService() {
             return
         }
         val mode = AppToServiceEvent.serviceStatus.value
-        val action = if (mode == ModeStatus.Mouse) Event.Stop else Event.Start(ModeStatus.Mouse)
-        val accepted = AppToServiceEvent.event.tryEmit(action)
-        DiagnosticRecorder.record("quick-tile", "sent=$action accepted=$accepted")
-        if (!accepted) android.util.Log.w("MouseQuickTile", "Service event queue unavailable")
+        if (mode == ModeStatus.Mouse || mode == ModeStatus.Loading) {
+            val accepted = AppToServiceEvent.event.tryEmit(Event.Stop)
+            DiagnosticRecorder.record("quick-tile", "stop sent=$accepted")
+            return
+        }
+        // The Samsung S Pen Remote SDK requires a resumed Activity for connect().
+        // Never call Event.Start directly from the TileService when the UI is closed.
+        val intent = Intent(this, MouseTileBridgeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (Build.VERSION.SDK_INT >= 34) {
+            val pending = PendingIntent.getActivity(this, 1, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            startActivityAndCollapse(pending)
+        } else {
+            @Suppress("DEPRECATION")
+            startActivityAndCollapse(intent)
+        }
+        DiagnosticRecorder.record("quick-tile", "requested bridge activity")
         // The tile follows the service's confirmed state; do not claim success on click.
     }
 
     private fun refreshTile(mode: ModeStatus) {
         val tile = qsTile ?: return
         // Keep the tile tappable while accessibility is off, so it can open settings.
-        tile.state = if (MouseService.connected && mode == ModeStatus.Mouse) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.state = if (MouseService.connected && mode == ModeStatus.Mouse && AppToServiceEvent.sPenReady.value) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             tile.subtitle = when {
                 !MouseService.connected -> "Dostępność wyłączona"
-                mode == ModeStatus.Mouse -> "Włączony"
+                mode == ModeStatus.Loading -> "Łączenie…"
+                mode == ModeStatus.Mouse && AppToServiceEvent.sPenReady.value -> "Włączony"
+                mode == ModeStatus.Mouse -> "Łączenie…"
                 else -> "Wyłączony"
             }
         }
