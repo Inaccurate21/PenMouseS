@@ -93,6 +93,7 @@ internal fun SettingsMouseTab(
         onRecalibrateMotion = { viewModel.onViewAction(SettingsMouseViewAction.RecalibrateMotion) },
         onCalibrateRightward = { viewModel.onViewAction(SettingsMouseViewAction.CalibrateRightwardMotion) },
         onDiagnosticsEnabled = { viewModel.onViewAction(SettingsMouseViewAction.DiagnosticsEnabled(it)) },
+        onGestureTraceEnabled = { viewModel.onViewAction(SettingsMouseViewAction.GestureTraceEnabled(it)) },
         onExportDiagnostics = { exportLauncher.launch("PenMouseS-diagnostyka-" + System.currentTimeMillis() + ".txt") },
         onClearDiagnostics = { DiagnosticRecorder.clear() },
         onMarkIssue = { DiagnosticRecorder.record("USER_MARK", "user marked a cursor or drag problem") },
@@ -118,6 +119,7 @@ private fun SettingsMouseTabContent(
     onRecalibrateMotion: () -> Unit = {},
     onCalibrateRightward: () -> Unit = {},
     onDiagnosticsEnabled: (Boolean) -> Unit = {},
+    onGestureTraceEnabled: (Boolean) -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     onClearDiagnostics: () -> Unit = {},
     onMarkIssue: () -> Unit = {},
@@ -355,6 +357,20 @@ private fun SettingsMouseTabContent(
             Row(modifier = Modifier.clickable { onDiagnosticsEnabled(!viewState.diagnosticsEnabled) }) {
                 Checkbox(checked = viewState.diagnosticsEnabled, onCheckedChange = onDiagnosticsEnabled)
                 Text(stringResource(R.string.settings_diagnostics_enable), modifier = Modifier.padding(pad_m))
+            }
+            Row(modifier = Modifier.clickable(enabled = viewState.diagnosticsEnabled) {
+                onGestureTraceEnabled(!viewState.gestureTraceEnabled)
+            }) {
+                Checkbox(
+                    checked = viewState.gestureTraceEnabled,
+                    enabled = viewState.diagnosticsEnabled,
+                    onCheckedChange = onGestureTraceEnabled
+                )
+                Column {
+                    Text(stringResource(R.string.settings_diagnostics_trace))
+                    Text(stringResource(R.string.settings_diagnostics_trace_info),
+                        style = MaterialTheme.typography.bodySmall)
+                }
             }
             Row {
                 TextButton(onClick = onExportDiagnostics) { Text(stringResource(R.string.settings_diagnostics_export)) }
