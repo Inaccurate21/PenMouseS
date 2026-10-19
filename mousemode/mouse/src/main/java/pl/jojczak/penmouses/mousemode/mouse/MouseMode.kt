@@ -212,7 +212,9 @@ class MouseMode(
                     attempts++
                     mainHandler.postDelayed({
                         if (!canStartJobs) return@postDelayed
+                        val lostCallback = sPenManager.onConnectionLost
                         sPenManager.disconnect()
+                        sPenManager.onConnectionLost = lostCallback
                         sPenManager.connect(this)
                     }, 350L * attempts)
                 } else {
