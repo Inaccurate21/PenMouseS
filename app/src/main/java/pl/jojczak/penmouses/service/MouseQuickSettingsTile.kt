@@ -66,7 +66,8 @@ class MouseQuickSettingsTile : TileService() {
         // The Samsung S Pen Remote SDK requires a resumed Activity for connect().
         // Never call Event.Start directly from the TileService when the UI is closed.
         val intent = Intent(this, MouseTileBridgeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or
+                Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         if (Build.VERSION.SDK_INT >= 34) {
             val pending = PendingIntent.getActivity(this, 1, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
