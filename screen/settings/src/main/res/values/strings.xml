@@ -70,5 +70,14 @@
     <string name="settings_overlay_size">Overlay size: %s</string>
     <string name="settings_button_hold_action">Hold S Pen button: %s</string>
     <string name="settings_button_hold_threshold">Hold recognition delay: %s</string>
-    <string name="settings_button_hold_explainer">In context-menu/double-click mode a short press sends a left tap and a hold performs the selected action. Context menus use a touchscreen long press, not a native mouse right button. Drag mode preserves existing behavior.</string>
+    <string name="settings_button_hold_explainer">A custom hold action replaces normal dragging. To preserve immediate dragging, choose "Normal hold and drag" and assign context menu to the double press instead. Long touch is not a native right mouse click.</string>
+
+    <string name="settings_button_double_action">Double press S Pen button</string>
+    <string name="settings_button_action_drag">Normal hold and drag</string>
+    <string name="settings_button_action_standard_double">Default — two regular clicks</string>
+    <string name="settings_button_action_context">Context menu (touchscreen long press)</string>
+    <string name="settings_button_action_doubletap">Double tap</string>
+    <string name="settings_button_action_back">Back</string>
+    <string name="settings_button_action_home">Home screen</string>
+    <string name="settings_button_double_explainer">With a custom double-press action, a single click waits up to 280 ms for the second press. Ordinary dragging is available after a 120 ms hold. Leave both actions at defaults for immediate drag.</string>
 </resources>
