@@ -93,6 +93,7 @@ object DiagnosticRecorder {
         val now = System.currentTimeMillis()
         val settings = listOf(
             "diagnostics_enabled" to prefs.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
+            "gesture_path_trace_enabled" to prefs.get(PrefKeys.MOUSE_GESTURE_TRACE_ENABLED),
             "cursor_sensitivity" to prefs.get(PrefKeys.MOUSE_SENSITIVITY),
             "cursor_acceleration" to prefs.get(PrefKeys.MOUSE_ACCELERATION),
             "axis_rotation" to prefs.get(PrefKeys.MOUSE_AXIS_ROTATION),
@@ -123,6 +124,7 @@ object DiagnosticRecorder {
             if (lastTime != null) appendLine("Time since last recorded event: ${(now - lastTime).coerceAtLeast(0L) / 1000}s (not measured while app/service inactive)")
             appendLine("Persistent log: ${if (flushed) "flushed" else "flush timeout; recent in-memory fallback"}; oldest data rotates after 7 MB, 2 files, retention up to 7 days")
             appendLine("Scope: service/tiles/UI lifecycle, motion deltas, click holds, gesture timing, battery parser status; no screen text")
+            appendLine("Detailed trace records injected touch coordinates; Gallery UI responses are indirect evidence, not proof a photo changed.")
             appendLine("Settings:")
             settings.forEach { (key, value) -> appendLine("  $key=$value") }
             appendLine("Events (${source.size} entries):")
