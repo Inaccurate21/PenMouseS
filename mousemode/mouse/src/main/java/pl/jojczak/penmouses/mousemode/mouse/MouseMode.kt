@@ -89,6 +89,11 @@ class MouseMode(
             backend = backend,
             schedule = backend::schedule,
             segmentDurationMs = preferences.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS).toLong(),
+            releaseGraceMs = if (preferences.get(PrefKeys.MOUSE_CAPTURE_LATE_MOTION)) 140L else 0L,
+            clockMs = SystemClock::uptimeMillis,
+            onReleaseGrace = { detail ->
+                DiagnosticRecorder.record("late-motion", detail)
+            },
             onFinished = { result ->
                 if (generation != dragGeneration || !canStartJobs) return@RealtimeDragController
                 cursorAnimator.releaseCursor()
