@@ -20,6 +20,7 @@ import pl.jojczak.penmouses.core.common.spen.SPenManager
 import pl.jojczak.penmouses.core.common.spen.listener.ButtonAction
 import pl.jojczak.penmouses.core.common.spen.listener.ConnectionResultCallback
 import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
+import pl.jojczak.penmouses.core.common.utils.GestureTraceRecorder
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
 import pl.jojczak.penmouses.core.common.utils.getDisplaySize
@@ -92,6 +93,7 @@ class MouseMode(
                 if (generation != dragGeneration || !canStartJobs) return@RealtimeDragController
                 cursorAnimator.releaseCursor()
                 DiagnosticRecorder.record("drag", "ended result=$result")
+                GestureTraceRecorder.dragFinished(result.name)
                 ignoreUntilRelease = sPenManager.isSPenButtonDown
                 hideCursor()
                 if (result != RealtimeDragController.Result.RELEASED &&
@@ -148,6 +150,7 @@ class MouseMode(
         val point = getCursorPos()
         val staticPath = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
         val stroke = GestureDescription.StrokeDescription(staticPath, 0L, durationMs)
+        GestureTraceRecorder.segment(point.x.toFloat(), point.y.toFloat(), point.x.toFloat(), point.y.toFloat(), durationMs, false, false)
         val accepted = dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
         DiagnosticRecorder.record("hold", "touch durationMs=$durationMs accepted=$accepted")
     }
@@ -159,6 +162,7 @@ class MouseMode(
             .addStroke(GestureDescription.StrokeDescription(path, 0L, 45L))
             .addStroke(GestureDescription.StrokeDescription(path, 125L, 45L))
             .build()
+        GestureTraceRecorder.segment(point.x.toFloat(), point.y.toFloat(), point.x.toFloat(), point.y.toFloat(), 170L, false, false)
         val accepted = dispatchGesture(gesture, null, null)
         DiagnosticRecorder.record("hold", "doubleTap accepted=$accepted")
     }
@@ -422,6 +426,7 @@ class MouseMode(
 
         val stroke = GestureDescription.StrokeDescription(mPath, 0, mDuration.coerceIn(1L, PenConst.MAX_CLICK_TIME_MS))
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        GestureTraceRecorder.segment(cursorStartPos.x.toFloat(), cursorStartPos.y.toFloat(), cursorPosition.x.toFloat(), cursorPosition.y.toFloat(), mDuration, false, false)
         dispatchGesture(gesture, null, null)
     }
 
