@@ -55,6 +55,8 @@ class MouseMode(
     private var prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
     private var prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
     private val airMotionAcceleration = AirMotionAcceleration()
+    // Smooth noisy Air Motion *inputs*, not rendered coordinates or click gestures.
+    private val airMotionInputStabilizer = AirMotionInputStabilizer()
     private val motionBurstGovernor = MotionBurstGovernor(SystemClock::uptimeMillis)
     // Only capture full samples around bursts when the existing detailed tracing is enabled.
     // This is observational: never feed trace state back into pointer movement.
@@ -245,6 +247,7 @@ class MouseMode(
 
     override fun start() {
         super.start()
+        airMotionInputStabilizer.reset()
         motionBurstGovernor.reset()
         motionTrace.reset()
         previousTraceSdkTimestampMs = null
@@ -341,6 +344,7 @@ class MouseMode(
         if (!canStartJobs) return
         DiagnosticRecorder.record("motion", "manual sensor listener restart")
         airMotionAcceleration.reset()
+        airMotionInputStabilizer.reset()
         motionBurstGovernor.reset()
         motionTrace.reset()
         previousTraceSdkTimestampMs = null
@@ -364,6 +368,7 @@ class MouseMode(
         sPenBatteryOverlay.hide()
         legacyButtonDown = false
         airMotionAcceleration.reset()
+        airMotionInputStabilizer.reset()
         motionBurstGovernor.reset()
         motionTrace.reset()
         previousTraceSdkTimestampMs = null
@@ -449,7 +454,10 @@ class MouseMode(
         val (screenWidth, screenHeight) = getDisplaySize(getDisplay())
 
         val position = getCursorPos()
-        val movement = airMotionAcceleration.convert(deltaX, deltaY, timeStamp, prefSensitivity, prefAcceleration, prefRotation)
+        val conditioned = airMotionInputStabilizer.filter(deltaX, deltaY, timeStamp)
+        val movement = airMotionAcceleration.convert(
+            conditioned.dx, conditioned.dy, timeStamp, prefSensitivity, prefAcceleration, prefRotation
+        )
         if (DiagnosticRecorder.isEnabled() && SystemClock.uptimeMillis() - lastDiagnosticMotionMs > 160L) {
             lastDiagnosticMotionMs = SystemClock.uptimeMillis()
             DiagnosticRecorder.record("motion", "deltaX=$deltaX deltaY=$deltaY timestamp=$timeStamp pxX=${movement.dx} pxY=${movement.dy} axis=$prefRotation displayRotation=${getDisplay().rotation}")
@@ -509,7 +517,9 @@ class MouseMode(
             motionTrace.add(
                 detail = "uptimeMs=$now sdkTimestampMs=$timeStamp sdkDtMs=$sdkInterval " +
                     "callbackDtMs=$callbackInterval sdkDx=$deltaX sdkDy=$deltaY " +
-                    "gain=$appliedGain rawX=${movement.dx} rawY=${movement.dy} " +
+                    "filteredDx=${conditioned.dx} filteredDy=${conditioned.dy} " +
+                    "filterMode=${conditioned.mode} gain=$appliedGain " +
+                    "rawX=${movement.dx} rawY=${movement.dy} " +
                     "softX=${stable.dx} softY=${stable.dy} " +
                     "outX=${governed.dx} outY=${governed.dy} " +
                     "discarded=${governed.reducedPixels} budget=${governed.budgetPixels} " +
@@ -664,6 +674,7 @@ class MouseMode(
         if (newRotation != prefRotation) {
             prefRotation = newRotation
             airMotionAcceleration.reset()
+            airMotionInputStabilizer.reset()
             motionBurstGovernor.reset()
             DiagnosticRecorder.record("preferences", "axis changed; sensor velocity reinitialized")
         }

@@ -50,7 +50,9 @@ internal class AirMotionAcceleration {
             SPEED_EMA * instantSpeed + (1f - SPEED_EMA) * filteredSpeed
         }
         val normalized = ((filteredSpeed - ACCEL_START) / (ACCEL_FULL - ACCEL_START)).coerceIn(0f, 1f)
-        val boost = 1f + acceleration.coerceIn(0f, 3f) * normalized * normalized
+        // Spread acceleration over a wider speed range and avoid the previous
+        // sudden 2x gain on ordinary 40-45ms S Pen samples.
+        val boost = 1f + ACCEL_STRENGTH * acceleration.coerceIn(0f, 3f) * normalized * normalized
         val scalar = BASE_PIXELS_PER_UNIT * sensitivity.coerceIn(1f, 400f) * boost
 
         val x = deltaX * scalar
@@ -69,8 +71,9 @@ internal class AirMotionAcceleration {
         const val DEFAULT_INTERVAL_MS = 16L
         const val MAX_INTERVAL_MS = 120L
         const val STALE_INTERVAL_MS = 500L
-        const val ACCEL_START = 0.25f
-        const val ACCEL_FULL = 3.0f
-        const val SPEED_EMA = 0.55f
+        const val ACCEL_START = 0.75f
+        const val ACCEL_FULL = 5.0f
+        const val SPEED_EMA = 0.35f
+        const val ACCEL_STRENGTH = 0.65f
     }
 }

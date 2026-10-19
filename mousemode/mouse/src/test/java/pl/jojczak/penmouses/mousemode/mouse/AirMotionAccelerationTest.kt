@@ -19,7 +19,17 @@ class AirMotionAccelerationTest {
         val slow = AirMotionAcceleration().convert(0.002f, 0f, frameMs, 100f, 2f)
         val fast = AirMotionAcceleration().convert(0.06f, 0f, frameMs, 100f, 2f)
         assertEquals(4f, slow.dx, 0.001f)
-        assertTrue(fast.dx > 2.5f * 0.06f * 100f * 20f)
+        assertTrue(fast.dx > 1.35f * 0.06f * 100f * 20f)
+        assertTrue(fast.dx < 2.5f * 0.06f * 100f * 20f)
+    }
+
+    @Test fun normalFastSamsungSampleDoesNotInstantlyDoubleItsMagnitude() {
+        val engine = AirMotionAcceleration()
+        engine.convert(0.04f, 0f, 1_000L, 41f, 1f)
+        val fast = engine.convert(0.20f, 0f, 1_043L, 41f, 1f)
+        val noBoost = 0.20f * 41f * 20f
+        assertTrue(fast.dx >= noBoost)
+        assertTrue(fast.dx < noBoost * 1.60f)
     }
 
     @Test fun increasingSensitivityIsLinearWithoutAcceleration() {
