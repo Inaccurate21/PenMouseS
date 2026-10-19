@@ -31,6 +31,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".service.MouseTileBridgeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".service.MouseService"
             android:exported="false"
