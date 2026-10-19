@@ -45,4 +45,6 @@
     <string name="settings_button_action_back">Wstecz</string>
     <string name="settings_button_action_home">Ekran główny</string>
     <string name="settings_button_double_explainer">Po ustawieniu specjalnej akcji dwukliku pojedyncze kliknięcie czeka maks. 280 ms na drugi nacisk. Normalne przeciąganie pozostaje dostępne po przytrzymaniu, ale rozpoczyna się z opóźnieniem 120 ms. Aby zachować natychmiastowe przeciąganie, ustaw oba działania na standardowe.</string>
+    <string name="settings_diagnostics_trace">Szczegółowy zapis gestów i reakcji Galerii</string>
+    <string name="settings_diagnostics_trace_info">Zapisuje wszystkie punkty dotyku wysłane do Androida, czasy i zdarzenia przewijania lub aktualizacji interfejsu Galerii. Nie zapisuje zdjęć ani tekstu. Reakcja interfejsu nie gwarantuje, że zdjęcie zostało zmienione. Włącz tylko na czas testu.</string>
 </resources>
