@@ -10,6 +10,8 @@ internal class RealtimeDragController(
     private val clockMs: () -> Long = { System.nanoTime() / 1_000_000L },
     private val onReleaseGrace: (String) -> Unit = {},
     private val onReleaseBrake: (String) -> Unit = {},
+    private val initialDownDurationMs: Long = 1L,
+    private val flingBrakeEnabled: Boolean = true,
 
 ) {
     data class Point(val x: Float, val y: Float)
@@ -102,7 +104,7 @@ internal class RealtimeDragController(
         val heldMs = clockMs() - pressStartedAtMs
         val horizontalDistance = kotlin.math.abs(target.x - pressStart.x)
         val verticalDistance = kotlin.math.abs(target.y - pressStart.y)
-        brakeOnRelease = !closed && finishResult == Result.RELEASED &&
+        brakeOnRelease = flingBrakeEnabled && !closed && finishResult == Result.RELEASED &&
             horizontalDistance >= MIN_HORIZONTAL_SWIPE_PX &&
             horizontalDistance >= verticalDistance * HORIZONTAL_DOMINANCE
         if (brakeOnRelease) {
@@ -151,7 +153,7 @@ internal class RealtimeDragController(
             from = end,
             to = target,
             durationMs = when {
-                !continuing -> 1L
+                !continuing -> initialDownDurationMs.coerceIn(1L, 1_200L)
                 !pressed && brakeOnRelease && end == target -> FLING_BRAKE_MS
                 !pressed && end != target -> segmentDurationMs.coerceIn(12L, 32L)
                 !pressed -> 1L

@@ -1,12 +1,10 @@
 package pl.jojczak.penmouses.mousemode.mouse
 
 /**
- * Maps S Pen button holds and double presses without synthesizing stray clicks.
- *
- * With both custom actions disabled MouseMode keeps its original immediate drag code.
- * With a custom double press the first short click waits for the second press.
- * A sustained press still begins the normal drag (after a brief 120ms detection window),
- * unless the user explicitly assigns an alternative hold action.
+ * Maps S Pen button clicks and holds onto actions without overlapping gestures.
+ * Default configuration preserves immediate pointer-down / pointer-up drag.
+ * When multi-click shortcuts are enabled, a short click waits briefly so that
+ * the second/third button press can be distinguished.
  */
 internal class SPenButtonShortcutRouter(
     private val holdAction: Int,
@@ -18,43 +16,44 @@ internal class SPenButtonShortcutRouter(
     private val singleTap: () -> Unit,
     private val holdShortcut: (Int) -> Unit,
     private val doubleShortcut: (Int) -> Unit,
+    private val tripleAction: Int = 0,
+    private val tripleShortcut: (Int) -> Unit = {},
+    private val selectionRelease: () -> Unit = {},
 ) {
     private val holdDelay = holdThresholdMs.coerceIn(250L, 900L)
     private var pressed = false
-    private var secondPress = false
     private var dragging = false
     private var holdTriggered = false
-    private var pendingSingle = false
     private var movementSincePress = 0f
+    private var precedingClicks = 0
+    private var pendingClicks = 0
     private var cancelPressTimer: (() -> Unit)? = null
-    private var cancelPendingSingle: (() -> Unit)? = null
+    private var cancelPendingClicks: (() -> Unit)? = null
+
+    private val multiClickEnabled get() = doubleAction != 0 || tripleAction != 0
 
     fun down() {
         if (pressed) return
         pressed = true
-        movementSincePress = 0f
         dragging = false
         holdTriggered = false
-        secondPress = pendingSingle
-        if (secondPress) {
-            cancelPendingSingle?.invoke()
-            cancelPendingSingle = null
-            pendingSingle = false
-        }
+        movementSincePress = 0f
+        precedingClicks = pendingClicks
+        pendingClicks = 0
+        cancelPendingClicks?.invoke()
+        cancelPendingClicks = null
         if (holdAction != 0) {
             cancelPressTimer = schedule(holdDelay) {
-                if (pressed && !holdTriggered && !dragging) {
-                    if (secondPress) singleTap() // second press became a hold, not a double
-                    secondPress = false
+                if (pressed && !dragging && !holdTriggered) {
+                    flushPrecedingClicks()
                     holdTriggered = true
                     holdShortcut(holdAction)
                 }
             }
-        } else if (doubleAction != 0) {
+        } else if (multiClickEnabled) {
             cancelPressTimer = schedule(DRAG_START_DELAY_MS) {
                 if (pressed && !dragging && !holdTriggered) {
-                    if (secondPress) singleTap()
-                    secondPress = false
+                    flushPrecedingClicks()
                     dragging = true
                     dragStart()
                 }
@@ -65,20 +64,15 @@ internal class SPenButtonShortcutRouter(
         }
     }
 
-    /**
-     * A real pointer movement during a held press is a drag, not a double click.
-     * This removes the fixed 120 ms startup delay for fast gallery photo swipes.
-     * Small hand tremors (< 28 px total) are intentionally ignored.
-     */
+    /** Faster drag start after 28px of actual cursor movement in multi-click mode. */
     fun onPointerMotion(distancePx: Float) {
         if (!pressed || dragging || holdTriggered ||
-            holdAction != 0 || doubleAction == 0 || !distancePx.isFinite()) return
+            holdAction != 0 || !multiClickEnabled || !distancePx.isFinite()) return
         movementSincePress += distancePx.coerceAtLeast(0f)
         if (movementSincePress < 28f) return
         cancelPressTimer?.invoke()
         cancelPressTimer = null
-        if (secondPress) singleTap()
-        secondPress = false
+        flushPrecedingClicks()
         dragging = true
         dragStart()
     }
@@ -88,43 +82,76 @@ internal class SPenButtonShortcutRouter(
         pressed = false
         cancelPressTimer?.invoke()
         cancelPressTimer = null
-        if (dragging) {
-            dragging = false
-            dragRelease()
-        } else if (!holdTriggered) {
-            if (secondPress) {
-                secondPress = false
-                doubleShortcut(doubleAction)
-            } else if (doubleAction != 0) {
-                pendingSingle = true
-                cancelPendingSingle = schedule(DOUBLE_PRESS_WINDOW_MS) {
-                    if (pendingSingle) {
-                        pendingSingle = false
-                        singleTap()
+        when {
+            dragging -> {
+                dragging = false
+                dragRelease()
+            }
+            holdTriggered -> {
+                if (holdAction == TEXT_SELECTION_HOLD_ACTION) selectionRelease()
+            }
+            !multiClickEnabled -> singleTap()
+            else -> {
+                val clicks = precedingClicks + 1
+                precedingClicks = 0
+                if (tripleAction != 0 && clicks == 3) {
+                    tripleShortcut(tripleAction)
+                } else if (tripleAction == 0 && doubleAction != 0 && clicks == 2) {
+                    doubleShortcut(doubleAction)
+                } else {
+                    pendingClicks = clicks
+                    cancelPendingClicks = schedule(MULTI_PRESS_WINDOW_MS) {
+                        flushPendingClicks()
                     }
                 }
-            } else {
-                singleTap()
             }
         }
         holdTriggered = false
+        precedingClicks = 0
+    }
+
+    private fun flushPrecedingClicks() {
+        val count = precedingClicks
+        precedingClicks = 0
+        flushClicks(count)
+    }
+
+    private fun flushPendingClicks() {
+        val count = pendingClicks
+        pendingClicks = 0
+        cancelPendingClicks = null
+        flushClicks(count)
+    }
+
+    private fun flushClicks(count: Int) {
+        when (count) {
+            1 -> singleTap()
+            2 -> {
+                if (doubleAction != 0) doubleShortcut(doubleAction)
+                else { singleTap(); singleTap() }
+            }
+        }
     }
 
     fun cancel() {
         cancelPressTimer?.invoke()
         cancelPressTimer = null
-        cancelPendingSingle?.invoke()
-        cancelPendingSingle = null
+        cancelPendingClicks?.invoke()
+        cancelPendingClicks = null
+        if (pressed && holdTriggered && holdAction == TEXT_SELECTION_HOLD_ACTION) {
+            selectionRelease()
+        }
         pressed = false
-        secondPress = false
-        movementSincePress = 0f
-        pendingSingle = false
         dragging = false
         holdTriggered = false
+        movementSincePress = 0f
+        precedingClicks = 0
+        pendingClicks = 0
     }
 
-    private companion object {
-        const val DRAG_START_DELAY_MS = 120L
-        const val DOUBLE_PRESS_WINDOW_MS = 280L
+    companion object {
+        const val TEXT_SELECTION_HOLD_ACTION = 5
+        private const val DRAG_START_DELAY_MS = 120L
+        private const val MULTI_PRESS_WINDOW_MS = 280L
     }
 }

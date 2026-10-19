@@ -178,6 +178,7 @@ private fun SettingsMouseTabContent(
             2 to R.string.settings_button_action_doubletap,
             3 to R.string.settings_button_action_back,
             4 to R.string.settings_button_action_home,
+            5 to R.string.settings_button_action_text_selection,
         ),
         onSelected = { action ->
             onPrefChanging(PrefKeys.MOUSE_HOLD_ACTION, action.toFloat())
@@ -193,10 +194,27 @@ private fun SettingsMouseTabContent(
             2 to R.string.settings_button_action_doubletap,
             3 to R.string.settings_button_action_back,
             4 to R.string.settings_button_action_home,
+            5 to R.string.settings_button_action_triple_tap,
         ),
         onSelected = { action ->
             onPrefChanging(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION, action.toFloat())
             onPrefChanged(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION, action.toFloat())
+        }
+    )
+    shortcutDropdown(
+        label = R.string.settings_button_triple_action,
+        selected = viewState.triplePressAction.toInt(),
+        choices = listOf(
+            0 to R.string.settings_button_action_standard_triple,
+            1 to R.string.settings_button_action_context,
+            2 to R.string.settings_button_action_doubletap,
+            3 to R.string.settings_button_action_back,
+            4 to R.string.settings_button_action_home,
+            5 to R.string.settings_button_action_triple_tap,
+        ),
+        onSelected = { action ->
+            onPrefChanging(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION, action.toFloat())
+            onPrefChanged(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION, action.toFloat())
         }
     )
     if (viewState.holdAction >= 1f) {
@@ -213,7 +231,7 @@ private fun SettingsMouseTabContent(
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(pad_m))
         }
     }
-    if (viewState.doublePressAction != 0f) {
+    if (viewState.doublePressAction != 0f || viewState.triplePressAction != 0f) {
         item {
             Text(stringResource(R.string.settings_button_double_explainer),
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(pad_m))

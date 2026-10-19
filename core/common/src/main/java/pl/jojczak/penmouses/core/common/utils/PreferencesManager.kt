@@ -78,6 +78,7 @@ class PreferencesManager(
             put(PrefKeys.MOUSE_ACCELERATION, PrefKeys.MOUSE_ACCELERATION.default)
             put(PrefKeys.MOUSE_HOLD_ACTION, PrefKeys.MOUSE_HOLD_ACTION.default)
             put(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION, PrefKeys.MOUSE_DOUBLE_PRESS_ACTION.default)
+            put(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION, PrefKeys.MOUSE_TRIPLE_PRESS_ACTION.default)
             put(PrefKeys.MOUSE_HOLD_THRESHOLD_MS, PrefKeys.MOUSE_HOLD_THRESHOLD_MS.default)
             put(PrefKeys.MOUSE_AXIS_ROTATION, PrefKeys.MOUSE_AXIS_ROTATION.default)
             put(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED, PrefKeys.MOUSE_DIAGNOSTICS_ENABLED.default)
@@ -133,7 +134,9 @@ object PrefKeys {
     val S_PEN_OBSERVED_LEVEL = PrefKey("spen_observed_battery_percent", -1)
     val S_PEN_OBSERVED_AT = PrefKey("spen_observed_battery_timestamp_ms", 0L)
     val MOUSE_HOLD_ACTION = PrefKey("mouse_hold_action", 0f, 1f, 0f..4f)
-    val MOUSE_DOUBLE_PRESS_ACTION = PrefKey("mouse_double_press_action", 0f, 1f, 0f..4f)
+    val MOUSE_DOUBLE_PRESS_ACTION = PrefKey("mouse_double_press_action", 0f, 1f, 0f..5f)
+    val MOUSE_TRIPLE_PRESS_ACTION = PrefKey("mouse_triple_press_action", 0f, 1f, 0f..5f)
+    val MOUSE_TEXT_SELECTION_SENSITIVITY_SCALE = 0.30f
     val MOUSE_HOLD_THRESHOLD_MS = PrefKey("mouse_hold_threshold_ms", 450f, 50f, 250f..900f)
     val MOUSE_ACCELERATION = PrefKey("mouse_acceleration", 1.5f, 0.5f, 0f..3f)
     val MOUSE_CURSOR_SIZE = PrefKey("cursor_size", 60f, 1f, 20f..250f)

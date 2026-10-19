@@ -52,6 +52,7 @@ internal class SettingsMouseViewModel @Inject constructor(
             mouseAcceleration = preferencesManager.get(PrefKeys.MOUSE_ACCELERATION),
             holdAction = preferencesManager.get(PrefKeys.MOUSE_HOLD_ACTION),
             doublePressAction = preferencesManager.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION),
+            triplePressAction = preferencesManager.get(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION),
             holdThresholdMs = preferencesManager.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS),
             axisRotation = preferencesManager.get(PrefKeys.MOUSE_AXIS_ROTATION),
             diagnosticsEnabled = preferencesManager.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED),
@@ -143,6 +144,7 @@ internal class SettingsMouseViewModel @Inject constructor(
         PrefKeys.MOUSE_AXIS_ROTATION -> updateState { it.copy(axisRotation = action.value as Float) }
         PrefKeys.MOUSE_HOLD_ACTION -> updateState { it.copy(holdAction = action.value as Float) }
         PrefKeys.MOUSE_DOUBLE_PRESS_ACTION -> updateState { it.copy(doublePressAction = action.value as Float) }
+        PrefKeys.MOUSE_TRIPLE_PRESS_ACTION -> updateState { it.copy(triplePressAction = action.value as Float) }
         PrefKeys.MOUSE_HOLD_THRESHOLD_MS -> updateState { it.copy(holdThresholdMs = action.value as Float) }
         PrefKeys.MOUSE_ACCELERATION -> updateState { it.copy(mouseAcceleration = action.value as Float) }
 

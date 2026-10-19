@@ -35,8 +35,12 @@
     <string name="settings_overlay_size">Wielkość nakładki: %s</string>
     <string name="settings_button_hold_action">Przytrzymanie przycisku: %s</string>
     <string name="settings_button_hold_threshold">Czas rozpoznania przytrzymania: %s</string>
-    <string name="settings_button_hold_explainer">Gdy przypiszesz akcję do przytrzymania, zajmie ona miejsce zwykłego przeciągania. Jeśli chcesz nadal przeciągać bez opóźnień, zostaw tutaj „Normalne przytrzymanie i przeciąganie”, a menu kontekstowe przypisz podwójnemu naciśnięciu.</string>
+    <string name="settings_button_hold_explainer">Gdy przypiszesz akcję do przytrzymania, zajmie ona miejsce zwykłego przeciągania. W trybie „Zaznaczanie tekstu” przytrzymaj przycisk po rozpoczęciu zaznaczania, przesuń rysik precyzyjnie i puść przycisk. Menu zaznaczenia wyświetli aplikacja, jeśli obsługuje tę funkcję. Jeśli chcesz nadal przeciągać bez opóźnień, zostaw tutaj „Normalne przytrzymanie i przeciąganie”, a menu kontekstowe przypisz podwójnemu naciśnięciu.</string>
 
+    <string name="settings_button_triple_action">Potrójne naciśnięcie przycisku</string>
+    <string name="settings_button_action_standard_triple">Standardowo — trzy osobne kliknięcia</string>
+    <string name="settings_button_action_triple_tap">Potrójne dotknięcie</string>
+    <string name="settings_button_action_text_selection">Zaznaczanie tekstu (precyzyjny ruch)</string>
     <string name="settings_button_double_action">Podwójne naciśnięcie przycisku</string>
     <string name="settings_button_action_drag">Normalne przytrzymanie i przeciąganie</string>
     <string name="settings_button_action_standard_double">Standardowo — dwa osobne kliknięcia</string>
@@ -44,7 +48,7 @@
     <string name="settings_button_action_doubletap">Dwuklik</string>
     <string name="settings_button_action_back">Wstecz</string>
     <string name="settings_button_action_home">Ekran główny</string>
-    <string name="settings_button_double_explainer">Po ustawieniu specjalnej akcji dwukliku pojedyncze kliknięcie czeka maks. 280 ms na drugi nacisk. Normalne przeciąganie pozostaje dostępne po przytrzymaniu, ale rozpoczyna się z opóźnieniem 120 ms. Aby zachować natychmiastowe przeciąganie, ustaw oba działania na standardowe.</string>
+    <string name="settings_button_double_explainer">Po ustawieniu specjalnej akcji dwukliku lub potrójnego kliknięcia pojedyncze kliknięcie czeka maks. 280 ms na kolejny nacisk. Normalne przeciąganie pozostaje dostępne po przytrzymaniu, ale rozpoczyna się z opóźnieniem 120 ms. Aby zachować natychmiastowe przeciąganie, ustaw oba działania na standardowe.</string>
     <string name="settings_diagnostics_trace">Szczegółowy zapis gestów i reakcji Galerii</string>
     <string name="settings_diagnostics_trace_info">Zapisuje wszystkie punkty dotyku wysłane do Androida, czasy i zdarzenia przewijania lub aktualizacji interfejsu Galerii. Nie zapisuje zdjęć ani tekstu. Reakcja interfejsu nie gwarantuje, że zdjęcie zostało zmienione. Włącz tylko na czas testu.</string>
     <string name="settings_capture_late_motion">Wychwytuj spóźniony ruch po puszczeniu przycisku (eksperymentalne)</string>

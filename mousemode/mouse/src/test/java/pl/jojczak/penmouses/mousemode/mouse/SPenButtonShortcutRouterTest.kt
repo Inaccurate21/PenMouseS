@@ -16,11 +16,13 @@ class SPenButtonShortcutRouterTest {
         val candidates = tasks.filter { it.millis == ms && !it.cancelled }.toList()
         for (task in candidates) { task.cancelled = true; task.call() }
     }
-    private fun router(hold: Int = 0, double: Int = 0) = SPenButtonShortcutRouter(
+    private fun router(hold: Int = 0, double: Int = 0, triple: Int = 0) = SPenButtonShortcutRouter(
         hold, double, 450L, ::schedule,
         dragStart = { calls.add("dragDown") }, dragRelease = { calls.add("dragUp") },
         singleTap = { calls.add("tap") },
-        holdShortcut = { calls.add("hold:$it") }, doubleShortcut = { calls.add("double:$it") }
+        holdShortcut = { calls.add("hold:$it") }, doubleShortcut = { calls.add("double:$it") },
+        tripleAction = triple, tripleShortcut = { calls.add("triple:$it") },
+        selectionRelease = { calls.add("selectionUp") }
     )
 
     @Test fun defaultHoldPreservesImmediateDrag() {
@@ -105,6 +107,62 @@ class SPenButtonShortcutRouterTest {
         r.up()
         fire(280)
         assertEquals(listOf("double:1"), calls)
+    }
+
+    @Test fun triplePressProducesOnlyThirdClickShortcut() {
+        val r = router(triple = 5)
+        r.down(); r.up()
+        r.down(); r.up()
+        assertTrue(calls.isEmpty())
+        r.down(); r.up()
+        fire(280)
+        assertEquals(listOf("triple:5"), calls)
+    }
+
+    @Test fun tripleEnabledAndOnlyDoubleConfiguredFallsBackToDoubleAfterWindow() {
+        val r = router(double = 2, triple = 3)
+        r.down(); r.up()
+        r.down(); r.up()
+        fire(280)
+        assertEquals(listOf("double:2"), calls)
+    }
+
+    @Test fun tripleEnabledWithoutDoublePreservesTwoOrdinaryTaps() {
+        val r = router(triple = 3)
+        r.down(); r.up()
+        r.down(); r.up()
+        fire(280)
+        assertEquals(listOf("tap", "tap"), calls)
+    }
+
+    @Test fun heldTextSelectionReleasesExactlyOnceWithoutClick() {
+        val r = router(hold = 5, triple = 3)
+        r.down()
+        fire(450)
+        r.onPointerMotion(100f)
+        assertEquals(listOf("hold:5"), calls)
+        r.up()
+        r.up()
+        fire(280)
+        assertEquals(listOf("hold:5", "selectionUp"), calls)
+    }
+
+    @Test fun cancellationSafelyEndsTextSelection() {
+        val r = router(hold = 5)
+        r.down()
+        fire(450)
+        r.cancel()
+        assertEquals(listOf("hold:5", "selectionUp"), calls)
+    }
+
+    @Test fun thirdPressHeldFlushesEarlierDoubleAndStartsDrag() {
+        val r = router(double = 4, triple = 3)
+        r.down(); r.up()
+        r.down(); r.up()
+        r.down()
+        fire(120)
+        r.up()
+        assertEquals(listOf("double:4", "dragDown", "dragUp"), calls)
     }
 
     @Test fun cancelStopsAllPendingClickActions() {

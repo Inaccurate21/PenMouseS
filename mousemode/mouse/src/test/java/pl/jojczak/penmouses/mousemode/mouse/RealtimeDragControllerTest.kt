@@ -62,6 +62,31 @@ class RealtimeDragControllerTest {
         )
     }
 
+    @Test fun textSelectionStaysDownForLongPressAndReleasesWithoutFlingBrake() {
+        val clock = Clock()
+        val backend = Backend()
+        val results = mutableListOf<Result>()
+        val controller = RealtimeDragController(
+            backend, clock::schedule, 32L, results::add,
+            initialDownDurationMs = 620L, flingBrakeEnabled = false,
+            clockMs = clock::timeMs,
+        )
+        controller.press(Point(100f, 300f))
+        assertEquals(620L, backend.segments[0].durationMs)
+        assertTrue(backend.segments[0].willContinue)
+        controller.move(Point(140f, 300f))
+        backend.complete(0)
+        backend.complete(1)
+        controller.move(Point(600f, 305f))
+        backend.complete(2)
+        controller.release()
+        val up = backend.segments[3]
+        assertFalse(up.willContinue)
+        assertEquals(1L, up.durationMs)
+        backend.complete(3)
+        assertEquals(listOf(Result.RELEASED), results)
+    }
+
     @Test fun pressDispatchesDownImmediatelyAndStationaryHoldDoesNotPoll() {
         val f = Fixture()
         assertTrue(f.controller.press(Point(10f, 20f)))

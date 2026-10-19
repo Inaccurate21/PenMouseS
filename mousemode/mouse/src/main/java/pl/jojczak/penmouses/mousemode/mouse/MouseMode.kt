@@ -116,6 +116,10 @@ class MouseMode(
     private var lastMotionBudgetDiagnosticMs = 0L
     private var buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
     private var doubleButtonAction = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+    private var tripleButtonAction = preferences.get(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION).toInt()
+    private var selectionController: RealtimeDragController? = null
+    private var selectionGeneration = 0L
+    private var selectionHeld = false
     private var shortcutRouter: SPenButtonShortcutRouter? = buildShortcutRouter()
     private var rightwardCalibration: RightwardMotionCalibration? = null
     private var finishCalibration: Runnable? = null
@@ -178,10 +182,11 @@ class MouseMode(
     }
 
     private fun buildShortcutRouter(): SPenButtonShortcutRouter? {
-        if (buttonHoldAction == 0 && doubleButtonAction == 0) return null
+        if (buttonHoldAction == 0 && doubleButtonAction == 0 && tripleButtonAction == 0) return null
         return SPenButtonShortcutRouter(
             holdAction = buttonHoldAction,
             doubleAction = doubleButtonAction,
+            tripleAction = tripleButtonAction,
             holdThresholdMs = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS).toLong(),
             schedule = { duration, callback ->
                 val task = Runnable { callback() }
@@ -199,8 +204,60 @@ class MouseMode(
             doubleShortcut = { action ->
                 DiagnosticRecorder.record("button-shortcut", "double action=$action")
                 performShortcut(action)
-            }
+            },
+            tripleShortcut = { action ->
+                DiagnosticRecorder.record("button-shortcut", "triple action=$action")
+                performShortcut(action)
+            },
+            selectionRelease = { releaseTextSelection() },
         )
+    }
+
+    /** Long press and continuous text selection while the physical S Pen button is held. */
+    private fun beginTextSelection() {
+        if (!canStartJobs || selectionController?.isActive == true ||
+            dragController?.isActive == true || legacyButtonDown) return
+        val generation = ++selectionGeneration
+        val backend = AndroidDragBackend(dispatchGesture, adaptivePacing = false)
+        val controller = RealtimeDragController(
+            backend = backend,
+            schedule = backend::schedule,
+            segmentDurationMs = 32L,
+            releaseGraceMs = 0L,
+            initialDownDurationMs = 620L,
+            flingBrakeEnabled = false,
+            clockMs = SystemClock::uptimeMillis,
+            onFinished = { result ->
+                if (generation != selectionGeneration) return@RealtimeDragController
+                selectionHeld = false
+                selectionController = null
+                cursorAnimator.releaseCursor()
+                DiagnosticRecorder.record("text-selection", "finished result=$result")
+                hideCursor()
+            },
+        )
+        selectionController = controller
+        selectionHeld = true
+        showCursor()
+        val pos = getCursorPos()
+        val accepted = controller.press(
+            RealtimeDragController.Point(pos.x.toFloat(), pos.y.toFloat())
+        )
+        if (accepted) {
+            cursorAnimator.clickCursor()
+            DiagnosticRecorder.record("text-selection", "start x=${pos.x} y=${pos.y} initialHoldMs=620 fineMotion=0.30")
+        } else {
+            selectionHeld = false
+            selectionController = null
+            DiagnosticRecorder.record("text-selection", "failed to begin")
+        }
+    }
+
+    private fun releaseTextSelection() {
+        if (!selectionHeld) return
+        selectionHeld = false
+        DiagnosticRecorder.record("text-selection", "button released; pointer up requested")
+        selectionController?.release()
     }
 
     private fun performShortcut(action: Int) {
@@ -215,6 +272,7 @@ class MouseMode(
                 val accepted = globalAction(AccessibilityService.GLOBAL_ACTION_HOME)
                 DiagnosticRecorder.record("button-shortcut", "HOME success=$accepted")
             }
+            5 -> performTripleTapAtCursor()
         }
     }
 
@@ -238,6 +296,17 @@ class MouseMode(
         GestureTraceRecorder.segment(point.x.toFloat(), point.y.toFloat(), point.x.toFloat(), point.y.toFloat(), 170L, false, false)
         val accepted = dispatchGesture(gesture, null, null)
         DiagnosticRecorder.record("hold", "doubleTap accepted=$accepted")
+    }
+
+    private fun performTripleTapAtCursor() {
+        val point = getCursorPos()
+        val path = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
+        val builder = GestureDescription.Builder()
+        repeat(3) { index ->
+            builder.addStroke(GestureDescription.StrokeDescription(path, index * 130L, 45L))
+        }
+        val accepted = dispatchGesture(builder.build(), null, null)
+        DiagnosticRecorder.record("button-shortcut", "tripleTap accepted=$accepted")
     }
 
     private var path = Path()
@@ -363,6 +432,10 @@ class MouseMode(
         finishCalibration = null
         rightwardCalibration = null
         shortcutRouter?.cancel()
+        ++selectionGeneration
+        selectionHeld = false
+        selectionController?.close()
+        selectionController = null
         DiagnosticRecorder.record("mode", "stop mouse")
         AppToServiceEvent.sPenReady.value = false
         ++dragGeneration
@@ -387,7 +460,7 @@ class MouseMode(
 
     private fun onButtonEvent(@ButtonAction type: Int, timeStamp: Long) {
         if (!canStartJobs) return
-        DiagnosticRecorder.record("button", "type=$type hold=$buttonHoldAction double=$doubleButtonAction realtime=$realtimeEnabled timestamp=$timeStamp")
+        DiagnosticRecorder.record("button", "type=$type hold=$buttonHoldAction double=$doubleButtonAction triple=$tripleButtonAction realtime=$realtimeEnabled timestamp=$timeStamp")
         if (type == ButtonEvent.ACTION_UP && ignoreUntilRelease) {
             ignoreUntilRelease = false
             return
@@ -491,16 +564,20 @@ class MouseMode(
             )
         }
         shortcutRouter?.onPointerMotion(governed.acceptedPixels)
-        motionX = ((motionX ?: position.x.toFloat()) + governed.dx)
+        // Fine control applies exclusively while the text-selection hold is active.
+        val fineFactor = if (selectionHeld) PrefKeys.MOUSE_TEXT_SELECTION_SENSITIVITY_SCALE else 1f
+        motionX = ((motionX ?: position.x.toFloat()) + governed.dx * fineFactor)
             .coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
-        motionY = ((motionY ?: position.y.toFloat()) + governed.dy)
+        motionY = ((motionY ?: position.y.toFloat()) + governed.dy * fineFactor)
             .coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
             x = motionX!!.roundToInt()
             y = motionY!!.roundToInt()
         }
-        if (realtimeEnabled) {
-            val point = getCursorPos()
+        val point = getCursorPos()
+        if (selectionHeld) {
+            selectionController?.move(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat()))
+        } else if (realtimeEnabled) {
             dragController?.move(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat()))
         }
 
@@ -604,7 +681,8 @@ class MouseMode(
     }
 
     private fun hideCursor() {
-        if (!canStartJobs || dragController?.isActive == true || legacyButtonDown) return
+        if (!canStartJobs || dragController?.isActive == true ||
+            selectionController?.isActive == true || legacyButtonDown) return
         if (prefHideDelay == PrefKeys.MOUSE_CURSOR_HIDE_DELAY.range.endInclusive.toLong()) {
             if (prefIsSleepEnabled) {
                 mainHandler.postDelayed(sleepJob, prefHideDelay + SLEEP_DELAY_MS_HIDING_DISABLED)
@@ -663,12 +741,14 @@ class MouseMode(
 
         val newHold = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
         val newDouble = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+        val newTriple = preferences.get(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION).toInt()
         val newThreshold = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS)
         if (newHold != buttonHoldAction || newDouble != doubleButtonAction ||
-            newThreshold != prefHoldThreshold) {
+            newTriple != tripleButtonAction || newThreshold != prefHoldThreshold) {
             shortcutRouter?.cancel()
             buttonHoldAction = newHold
             doubleButtonAction = newDouble
+            tripleButtonAction = newTriple
             prefHoldThreshold = newThreshold
             shortcutRouter = buildShortcutRouter()
             DiagnosticRecorder.record("preferences", "button shortcuts updated")
