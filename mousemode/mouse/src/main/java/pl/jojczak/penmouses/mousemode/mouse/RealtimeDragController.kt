@@ -6,6 +6,10 @@ internal class RealtimeDragController(
     private val schedule: (Long, () -> Unit) -> (() -> Unit),
     private val segmentDurationMs: Long = 16L,
     private val onFinished: (Result) -> Unit = {},
+    private val releaseGraceMs: Long = 0L,
+    private val clockMs: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val onReleaseGrace: (String) -> Unit = {},
+
 ) {
     data class Point(val x: Float, val y: Float)
     data class Segment(
@@ -38,6 +42,10 @@ internal class RealtimeDragController(
     private var cancelWatchdog: (() -> Unit)? = null
     private var cancelHoldLimit: (() -> Unit)? = null
     private var finishResult = Result.RELEASED
+    private var pressStartedAtMs = 0L
+    private var gracePending = false
+    private var cancelGrace: (() -> Unit)? = null
+    val awaitingLateMotion: Boolean get() = isActive && gracePending
 
     fun press(point: Point): Boolean {
         if (closed || isActive || !point.x.isFinite() || !point.y.isFinite()) return false
@@ -47,6 +55,10 @@ internal class RealtimeDragController(
         end = point
         target = point
         finishResult = Result.RELEASED
+        gracePending = false
+        pressStartedAtMs = clockMs()
+        cancelGrace?.invoke()
+        cancelGrace = null
         cancelHoldLimit = schedule(MAX_HOLD_MS) {
             if (isActive) {
                 finishResult = Result.HOLD_LIMIT
@@ -59,12 +71,48 @@ internal class RealtimeDragController(
 
     fun move(point: Point) {
         if (!isActive || !pressed || !point.x.isFinite() || !point.y.isFinite()) return
+        if (gracePending) {
+            val sampleDistance = kotlin.math.hypot(point.x - target.x, point.y - target.y)
+            target = point
+            if (sampleDistance >= MIN_LATE_SAMPLE_PX) {
+                onReleaseGrace("sample-captured px=$sampleDistance")
+                completeRelease()
+            } else {
+                pump()
+            }
+            return
+        }
         target = point
         pump()
     }
 
     fun release() {
         if (!isActive) return
+        if (gracePending) {
+            completeRelease()
+            return
+        }
+        val heldMs = clockMs() - pressStartedAtMs
+        val eligible = !closed && finishResult == Result.RELEASED &&
+            releaseGraceMs > 0L && heldMs in MIN_GRACE_HOLD_MS..MAX_GRACE_HOLD_MS
+        if (eligible) {
+            gracePending = true
+            onReleaseGrace("waiting heldMs=$heldMs waitMs=$releaseGraceMs")
+            cancelGrace = schedule(releaseGraceMs.coerceIn(20L, 160L)) {
+                if (isActive && gracePending) {
+                    onReleaseGrace("timeout")
+                    completeRelease()
+                }
+            }
+        } else {
+            completeRelease()
+        }
+    }
+
+    private fun completeRelease() {
+        cancelGrace?.invoke()
+        cancelGrace = null
+        gracePending = false
         pressed = false
         pump()
     }
@@ -84,7 +132,12 @@ internal class RealtimeDragController(
         val segment = Segment(
             from = end,
             to = target,
-            durationMs = if (!continuing || !pressed) 1L else backend.suggestedDurationMs(segmentDurationMs.coerceIn(1L, 32L)),
+            durationMs = when {
+                !continuing -> 1L
+                !pressed && end != target -> segmentDurationMs.coerceIn(12L, 32L)
+                !pressed -> 1L
+                else -> backend.suggestedDurationMs(segmentDurationMs.coerceIn(1L, 32L))
+            },
             continuing = continuing,
             willContinue = pressed,
         )
@@ -127,8 +180,11 @@ internal class RealtimeDragController(
         continuing = false
         cancelWatchdog?.invoke()
         cancelHoldLimit?.invoke()
+        cancelGrace?.invoke()
         cancelWatchdog = null
         cancelHoldLimit = null
+        cancelGrace = null
+        gracePending = false
         backend.reset()
         onFinished(result)
     }
@@ -136,5 +192,8 @@ internal class RealtimeDragController(
     companion object {
         const val MAX_HOLD_MS = 30_000L
         private const val CALLBACK_TIMEOUT_MS = 1_000L
+        private const val MIN_GRACE_HOLD_MS = 115L
+        private const val MAX_GRACE_HOLD_MS = 480L
+        private const val MIN_LATE_SAMPLE_PX = 28f
     }
 }
