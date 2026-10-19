@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.samsung.android.sdk.penremote.ButtonEvent
 import pl.jojczak.penmouses.core.common.notifications.NotificationsManager
+import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
 import pl.jojczak.penmouses.core.common.spen.listener.ButtonAction
@@ -38,6 +39,7 @@ class MouseMode(
     sPenManager: SPenManager,
     stopService: () -> Unit,
     context: Context,
+    private val globalAction: (Int) -> Boolean = { false },
 ) : CursorMode<MouseAnimator>(
     notificationsManager = notificationsManager,
     dispatchGesture = dispatchGesture,
@@ -158,9 +160,11 @@ class MouseMode(
             stopService()
         }
 
-        sPenManager.connect(object : ConnectionResultCallback() {
+        var attempts = 0
+        val connectionCallback = object : ConnectionResultCallback() {
             override fun onSuccess() {
-                DiagnosticRecorder.record("connection", "S Pen connected")
+                DiagnosticRecorder.record("connection", "S Pen connected after attempts=${attempts + 1}")
+                AppToServiceEvent.sPenReady.value = true
                 if (!canStartJobs) return
                 pingCursor()
                 mainHandler.postDelayed({
@@ -177,10 +181,21 @@ class MouseMode(
             }
 
             override fun onFailure(errorCode: Int) {
-                DiagnosticRecorder.record("connection", "failed code=$errorCode")
-                showErrorAndStopService(errorCode)
+                AppToServiceEvent.sPenReady.value = false
+                DiagnosticRecorder.record("connection", "failed code=$errorCode attempt=${attempts + 1}")
+                if (canStartJobs && attempts < 2) {
+                    attempts++
+                    mainHandler.postDelayed({
+                        if (!canStartJobs) return@postDelayed
+                        sPenManager.disconnect()
+                        sPenManager.connect(this)
+                    }, 350L * attempts)
+                } else {
+                    showErrorAndStopService(errorCode)
+                }
             }
-        })
+        }
+        sPenManager.connect(connectionCallback)
     }
 
     fun refreshBatteryStatus() = sPenBatteryOverlay.refresh()
@@ -235,6 +250,7 @@ class MouseMode(
         rightwardCalibration = null
         holdRecognizer.cancel()
         DiagnosticRecorder.record("mode", "stop mouse")
+        AppToServiceEvent.sPenReady.value = false
         ++dragGeneration
         dragController?.close()
         dragController = null
