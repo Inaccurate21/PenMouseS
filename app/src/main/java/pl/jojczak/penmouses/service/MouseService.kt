@@ -20,6 +20,7 @@ import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
 import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
+import pl.jojczak.penmouses.core.common.utils.GestureTraceRecorder
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.mousemode.base.BaseMode
 import pl.jojczak.penmouses.mousemode.mouse.MouseMode
@@ -155,6 +156,22 @@ class MouseService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        // Log only UI event types in supported gallery apps near our own gestures.
+        // Never inspect image contents, node text, filenames or thumbnails.
+        val galleryPackage = event.packageName?.toString()
+        if (galleryPackage == "com.sec.android.gallery3d" ||
+            galleryPackage == "com.google.android.apps.photos") {
+            val reaction = when (event.eventType) {
+                AccessibilityEvent.TYPE_VIEW_SCROLLED -> "VIEW_SCROLLED"
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "WINDOW_CONTENT_CHANGED"
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "WINDOW_STATE_CHANGED"
+                else -> null
+            }
+            if (reaction != null) {
+                GestureTraceRecorder.galleryEvent(reaction, event.scrollDeltaX, event.scrollDeltaY)
+            }
+            return
+        }
         // Detect the known Samsung Air Actions warning without retaining any UI text.
         // A third-party service cannot prevent the Samsung system warning from displaying.
         if (preferences.get(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED) &&
