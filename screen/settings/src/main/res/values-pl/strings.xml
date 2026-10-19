@@ -47,4 +47,6 @@
     <string name="settings_button_double_explainer">Po ustawieniu specjalnej akcji dwukliku pojedyncze kliknięcie czeka maks. 280 ms na drugi nacisk. Normalne przeciąganie pozostaje dostępne po przytrzymaniu, ale rozpoczyna się z opóźnieniem 120 ms. Aby zachować natychmiastowe przeciąganie, ustaw oba działania na standardowe.</string>
     <string name="settings_diagnostics_trace">Szczegółowy zapis gestów i reakcji Galerii</string>
     <string name="settings_diagnostics_trace_info">Zapisuje wszystkie punkty dotyku wysłane do Androida, czasy i zdarzenia przewijania lub aktualizacji interfejsu Galerii. Nie zapisuje zdjęć ani tekstu. Reakcja interfejsu nie gwarantuje, że zdjęcie zostało zmienione. Włącz tylko na czas testu.</string>
+    <string name="settings_capture_late_motion">Wychwytuj spóźniony ruch po puszczeniu przycisku (eksperymentalne)</string>
+    <string name="settings_capture_late_motion_info">Podczas krótkiego przeciągnięcia czeka maks. 140 ms na kolejną próbkę S Pena, aby nie zgubić końca ruchu. Nie zmienia czułości ani przyspieszenia. Może opóźnić zakończenie gestu; wyłącz, jeśli przeszkadza w klikaniu.</string>
 </resources>
