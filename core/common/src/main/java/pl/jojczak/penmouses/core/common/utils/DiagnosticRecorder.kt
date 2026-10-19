@@ -99,6 +99,7 @@ object DiagnosticRecorder {
             "axis_rotation" to prefs.get(PrefKeys.MOUSE_AXIS_ROTATION),
             "drag_ms" to prefs.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS),
             "adaptive_drag" to prefs.get(PrefKeys.MOUSE_ADAPTIVE_DRAG),
+            "late_motion_compensation" to prefs.get(PrefKeys.MOUSE_CAPTURE_LATE_MOTION),
             "hold_action" to prefs.get(PrefKeys.MOUSE_HOLD_ACTION),
             "hold_threshold_ms" to prefs.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS),
             "overlay_enabled" to prefs.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
