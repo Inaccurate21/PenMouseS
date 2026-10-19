@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityFlags="flagDefault"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeNotificationStateChanged|typeViewScrolled"
+    android:packageNames="com.android.settings,com.samsung.android.service.aircommand,com.android.systemui,com.sec.android.gallery3d,com.google.android.apps.photos"
     android:canPerformGestures="true"
-    android:canRetrieveWindowContent="false"
+    android:canRetrieveWindowContent="true"
     android:description="@string/pen_mouse_s_service_description"
-    android:notificationTimeout="100"
-    android:packageNames="pl.jojczak.penmouses"
-    android:settingsActivity="pl.jojczak.penmouses.ui.main.MainActivity" />
+    android:notificationTimeout="300"
+    android:settingsActivity="pl.jojczak.penmouses.main.MainActivity" />

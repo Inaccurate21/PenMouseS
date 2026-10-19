@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_mouse_acceleration">Air movement acceleration: %s (0 = off, 3 = maximum)</string>
+    <string name="settings_realtime_drag">Live press and drag (experimental)</string>
+    <string name="settings_realtime_drag_info">Press starts touch immediately; hold to drag, release to lift. Touch, not a system mouse. Safety release after 30 seconds. Disable for the original deferred mode.</string>
+    <string name="settings_drag_segment_ms">Gesture segment: %s ms (shorter segments do not always mean lower latency)</string>
     <string name="settings_mouse_tab">Mouse</string>
     <string name="settings_point_tab">Point</string>
     <string name="settings_scroll_tab">Scroll</string>
@@ -34,4 +38,54 @@
 
     <string name="settings_scroll_experimental_mode">Power saving mode (Experimental!)</string>
     <string name="settings_scroll_experimental_mode_desc">S Pen will activate the gyroscope only after the button is pressed, which significantly saves the S Pen\'s battery but may interrupt the connection. Disable if scrolling suddenly stops working.</string>
+    <string name="settings_spen_battery_overlay_title">S Pen status overlay</string>
+    <string name="settings_spen_battery_overlay_hint">Last visible percentage from Settings → S Pen, captured by accessibility after you visit the screen once. The timestamp represents the last observation, not continuous battery telemetry. An asterisk (*) means the last reading is old and may be inaccurate.</string>
+    <string name="settings_spen_battery_overlay_enable">Show overlay</string>
+    <string name="settings_spen_battery_overlay_unlock">Unlock overlay drag with finger</string>
+    <string name="settings_spen_battery_overlay_alpha">Overlay opacity: %s</string>
+    <string name="settings_spen_battery_overlay_x">Horizontal position: %s</string>
+    <string name="settings_spen_battery_overlay_y">Vertical position: %s</string>
+    <string name="settings_spen_battery_overlay_color">Overlay color: %s</string>
+    <string name="settings_axis_rotation">Motion axis correction: %s</string>
+    <string name="settings_recalibrate_motion">Restart S Pen motion sensor listener</string>
+    <string name="settings_diagnostics_title">S Pen diagnostics</string>
+    <string name="settings_diagnostics_info">Opt-in recording of motion, button events, gesture times and S Pen battery parser metadata. Max 2400 events in memory. Enable, reproduce the issue, then export a report.</string>
+    <string name="settings_diagnostics_enable">Enable recording</string>
+    <string name="settings_diagnostics_export">Export TXT report</string>
+    <string name="settings_diagnostics_clear">Clear data</string>
+    <string name="settings_diagnostics_saved">Report saved</string>
+    <string name="settings_diagnostics_export_failed">Could not save report</string>
+    <string name="settings_calibrate_rightward">Calibrate direction — move S Pen RIGHT for 3 seconds after tapping</string>
+    <string name="settings_adaptive_drag">Adaptive gesture segments (experimental)</string>
+    <string name="settings_adaptive_drag_info">Android may acknowledge segments much later than their requested length. Optionally increases segment duration up to 24 ms when callbacks are slow. Disable to keep a fixed duration.</string>
+    <string name="settings_diagnostics_mark">Mark problem</string>
+
+    <string name="settings_section_gestures">Drag and sensitivity</string>
+    <string name="settings_section_axis">Direction calibration</string>
+    <string name="settings_section_overlay">S Pen battery overlay</string>
+    <string name="settings_section_diagnostics">Diagnostics</string>
+    <string name="settings_section_cursor">Cursor and sensitivity</string>
+    <string name="settings_overlay_compact">Compact — percentage only</string>
+    <string name="settings_overlay_time">Show last battery measurement time</string>
+    <string name="settings_overlay_size">Overlay size: %s</string>
+    <string name="settings_button_hold_action">Hold S Pen button: %s</string>
+    <string name="settings_button_hold_threshold">Hold recognition delay: %s</string>
+    <string name="settings_button_hold_explainer">A custom hold action replaces normal dragging. Select text: hold the S Pen button, move the pen with reduced sensitivity, and release; the target app displays its standard text toolbar if supported. To preserve immediate dragging, choose "Normal hold and drag" and assign context menu to the double press instead. Long touch is not a native right mouse click.</string>
+
+    <string name="settings_button_triple_action">Triple press S Pen button</string>
+    <string name="settings_button_action_standard_triple">Default — three separate clicks</string>
+    <string name="settings_button_action_triple_tap">Triple tap</string>
+    <string name="settings_button_action_text_selection">Select text (precision mode)</string>
+    <string name="settings_button_double_action">Double press S Pen button</string>
+    <string name="settings_button_action_drag">Normal hold and drag</string>
+    <string name="settings_button_action_standard_double">Default — two regular clicks</string>
+    <string name="settings_button_action_context">Context menu (touchscreen long press)</string>
+    <string name="settings_button_action_doubletap">Double tap</string>
+    <string name="settings_button_action_back">Back</string>
+    <string name="settings_button_action_home">Home screen</string>
+    <string name="settings_button_double_explainer">With a custom double- or triple-press action, a single click waits up to 280 ms for the next press. Ordinary dragging is available after a 120 ms hold. Leave both actions at defaults for immediate drag.</string>
+    <string name="settings_diagnostics_trace">Detailed gesture path and Gallery response</string>
+    <string name="settings_diagnostics_trace_info">Records touch coordinates sent to Android, timings, and Samsung Gallery scroll/content change event types. No photos or text. UI responses are not proof an image changed. Enable for testing only.</string>
+    <string name="settings_capture_late_motion">Capture late S Pen movement after release (experimental)</string>
+    <string name="settings_capture_late_motion_info">Short drags wait up to 140 ms for a delayed S Pen sensor sample so the last movement is not lost. Sensitivity and acceleration are unchanged. Disable if the delayed release interferes with taps.</string>
 </resources>

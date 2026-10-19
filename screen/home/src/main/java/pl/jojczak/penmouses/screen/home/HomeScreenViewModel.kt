@@ -1,14 +1,13 @@
 package pl.jojczak.penmouses.screen.home
 
 import android.content.Context
+import android.content.ComponentName
 import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.Firebase
-import com.google.firebase.analytics.analytics
-import com.google.firebase.crashlytics.crashlytics
+import pl.jojczak.penmouses.core.common.utils.OptionalTelemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -85,7 +84,11 @@ class HomeScreenViewModel @Inject constructor(
             context.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )
-        val isAccessibilityEnabled = enabledServices?.contains(MOUSE_SERVICE_NAME) == true
+        val isAccessibilityEnabled = enabledServices?.split(':')?.any { service ->
+            ComponentName.unflattenFromString(service)?.let {
+                it.packageName == context.packageName && it.className == MOUSE_SERVICE_NAME
+            } == true
+        } == true
 
         _state.update { it.copy(isAccessibilityEnabled = isAccessibilityEnabled) }
     }
@@ -121,8 +124,7 @@ class HomeScreenViewModel @Inject constructor(
         Log.d(TAG, "toggleAnalyticsConsent: $enabled")
         preferencesManager.put(PrefKeys.ANALYTICS_ENABLED, enabled)
         preferencesManager.put(PrefKeys.ANALYTICS_CONSENT_SHOWED, true)
-        Firebase.analytics.setAnalyticsCollectionEnabled(enabled)
-        Firebase.crashlytics.isCrashlyticsCollectionEnabled = enabled
+        OptionalTelemetry.setEnabled(enabled)
         _state.update { it.copy(analyticsDialogEnabled = false) }
     }
 

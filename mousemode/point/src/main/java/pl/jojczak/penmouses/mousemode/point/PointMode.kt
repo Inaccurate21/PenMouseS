@@ -24,7 +24,7 @@ import pl.jojczak.penmouses.mousemode.base.PenRunnable
 import pl.jojczak.penmouses.mousemode.basecursor.CursorMode
 
 class PointMode(
-    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Unit,
+    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Boolean,
     notificationsManager: NotificationsManager,
     preferences: PreferencesManager,
     sPenManager: SPenManager,

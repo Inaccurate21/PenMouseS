@@ -1,8 +1,9 @@
 package pl.jojczak.penmouses.core.common.spen
 
 import android.util.Log
-import com.google.firebase.Firebase
-import com.google.firebase.crashlytics.crashlytics
+import android.os.Handler
+import android.os.Looper
+import pl.jojczak.penmouses.core.common.utils.OptionalTelemetry
 import com.samsung.android.sdk.penremote.AirMotionEvent
 import com.samsung.android.sdk.penremote.ButtonEvent
 import com.samsung.android.sdk.penremote.SpenEventListener
@@ -20,6 +21,13 @@ class SPenManager(
     private val activityProvider: ActivityProvider,
 ) {
     var isSPenButtonDown = false
+    var onConnectionLost: (() -> Unit)? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var connectionGeneration = 0L
+
+    private fun onMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block() else mainHandler.post { block() }
+    }
 
     private var sPenUnitManager: SpenUnitManager? = null
     private var isAirMotionRegistered = false
@@ -35,11 +43,22 @@ class SPenManager(
 
         if (isSPenSupported()) {
             val sPenRemote = SpenRemote.getInstance()
+            val generation = ++connectionGeneration
+            sPenRemote.setConnectionStateChangeListener { state ->
+                onMain {
+                    if (generation == connectionGeneration && state != SpenRemote.State.CONNECTED) {
+                        isSPenButtonDown = false
+                        onConnectionLost?.invoke()
+                    }
+                }
+            }
 
-            if (!sPenRemote.isConnected) {
+            if (sPenRemote.isConnected && sPenUnitManager != null) {
+                sPenManagerConnectionResultCallback.onSuccess()
+            } else {
                 sPenRemote.connect(
                     activity,
-                    SPenRemoteConnectionResultCallback(sPenManagerConnectionResultCallback)
+                    SPenRemoteConnectionResultCallback(sPenManagerConnectionResultCallback, generation)
                 )
             }
         } else {
@@ -49,16 +68,22 @@ class SPenManager(
     }
 
     private inner class SPenRemoteConnectionResultCallback(
-        val sPenManagerConnectionResultCallback: ConnectionResultCallback
+        val sPenManagerConnectionResultCallback: ConnectionResultCallback,
+        val generation: Long,
     ) : SpenRemote.ConnectionResultCallback {
         override fun onSuccess(sPenUnitManager: SpenUnitManager?) {
             Log.i(TAG, "Connection successful")
-            this@SPenManager.sPenUnitManager = sPenUnitManager
-            sPenManagerConnectionResultCallback.onSuccess()
+            onMain {
+                if (generation != connectionGeneration) return@onMain
+                this@SPenManager.sPenUnitManager = sPenUnitManager
+                sPenManagerConnectionResultCallback.onSuccess()
+            }
         }
 
         override fun onFailure(errorCode: Int) {
-            sPenManagerConnectionResultCallback.onFailure(errorCode)
+            onMain {
+                if (generation == connectionGeneration) sPenManagerConnectionResultCallback.onFailure(errorCode)
+            }
         }
     }
 
@@ -68,24 +93,28 @@ class SPenManager(
     ) {
         sPenUnitManager?.let { unitManager ->
             val buttonUnit = unitManager.getUnit(SpenUnit.TYPE_BUTTON)
+            val generation = connectionGeneration
 
             val mButtonEventListener = SpenEventListener { event ->
                 val mEvent = ButtonEvent(event)
 
-                if (!isSPenButtonDown && mEvent.action == ButtonEvent.ACTION_UP) return@SpenEventListener
-                isSPenButtonDown = mEvent.action == ButtonEvent.ACTION_DOWN
-
-                buttonEventListener.onEvent(mEvent.action, mEvent.timeStamp)
+                onMain {
+                    if (generation != connectionGeneration) return@onMain
+                    val down = mEvent.action == ButtonEvent.ACTION_DOWN
+                    if (down == isSPenButtonDown) return@onMain
+                    isSPenButtonDown = down
+                    buttonEventListener.onEvent(mEvent.action, mEvent.timeStamp)
+                }
             }
 
             try {
                 unitManager.registerSpenEventListener(mButtonEventListener, buttonUnit)
             } catch (e: SecurityException) {
-                Firebase.crashlytics.recordException(e)
+                OptionalTelemetry.recordException(e)
                 Log.e(TAG, "Error registering button event listener", e)
                 errorCallback(SpenRemote.Error.UNSUPPORTED_DEVICE)
             } catch (e: Exception) {
-                Firebase.crashlytics.recordException(e)
+                OptionalTelemetry.recordException(e)
                 Log.e(TAG, "Error registering button event listener", e)
                 errorCallback(SpenRemote.Error.UNKNOWN)
             }
@@ -106,21 +135,26 @@ class SPenManager(
 
         sPenUnitManager?.let { unitManager ->
             val airMotionUnit = unitManager.getUnit(SpenUnit.TYPE_AIR_MOTION)
+            val generation = connectionGeneration
 
             val mAirMotionEventListener = SpenEventListener { event ->
                 val mEvent = AirMotionEvent(event)
-                airMotionEventListener.onEvent(mEvent.deltaX, mEvent.deltaY, mEvent.timeStamp)
+                onMain {
+                    if (generation == connectionGeneration && isAirMotionRegistered) {
+                        airMotionEventListener.onEvent(mEvent.deltaX, mEvent.deltaY, mEvent.timeStamp)
+                    }
+                }
             }
 
             try {
                 unitManager.registerSpenEventListener(mAirMotionEventListener, airMotionUnit)
             } catch (e: SecurityException) {
                 Log.e(TAG, "Error registering button event listener", e)
-                Firebase.crashlytics.recordException(e)
+                OptionalTelemetry.recordException(e)
                 errorCallback(SpenRemote.Error.UNSUPPORTED_DEVICE)
             } catch (e: Exception) {
                 Log.e(TAG, "Error registering button event listener", e)
-                Firebase.crashlytics.recordException(e)
+                OptionalTelemetry.recordException(e)
                 errorCallback(SpenRemote.Error.UNKNOWN)
             }
 
@@ -140,17 +174,20 @@ class SPenManager(
 
     fun disconnect() {
         Log.d(TAG, "Disconnecting from S-Pen...")
+        ++connectionGeneration
+        isSPenButtonDown = false
+        onConnectionLost = null
+        isAirMotionRegistered = false
 
-        sPenUnitManager?.let {
-            val buttonUnit = it.getUnit(SpenUnit.TYPE_BUTTON)
-            val airMotionUnit = it.getUnit(SpenUnit.TYPE_AIR_MOTION)
-            it.unregisterSpenEventListener(buttonUnit)
-            it.unregisterSpenEventListener(airMotionUnit)
-            isAirMotionRegistered = false
-        }
+        val manager = sPenUnitManager
         sPenUnitManager = null
 
         try {
+            SpenRemote.getInstance().setConnectionStateChangeListener(null)
+            manager?.let {
+                it.unregisterSpenEventListener(it.getUnit(SpenUnit.TYPE_BUTTON))
+                it.unregisterSpenEventListener(it.getUnit(SpenUnit.TYPE_AIR_MOTION))
+            }
             SpenRemote.getInstance().disconnect(activityProvider.getActivity())
         } catch (e: Exception) {
             Log.e(
@@ -158,7 +195,7 @@ class SPenManager(
                 "Error disconnecting from S-Pen, probably activity destroyed before disconnect",
                 e
             )
-            Firebase.crashlytics.recordException(e)
+            OptionalTelemetry.recordException(e)
         }
     }
 
@@ -189,11 +226,11 @@ class SPenManager(
             }
         } catch (e: ClassNotFoundException) {
             Log.e(TAG, "SpenRemote class not found, S-Pen features unavailable", e)
-            Firebase.crashlytics.recordException(e)
+            OptionalTelemetry.recordException(e)
             false
         } catch (e: Exception) {
             Log.e(TAG, "Error checking if S-Pen is supported", e)
-            Firebase.crashlytics.recordException(e)
+            OptionalTelemetry.recordException(e)
             false
         }
     }

@@ -5,12 +5,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 object AppToServiceEvent {
     val serviceStatus = MutableStateFlow<ModeStatus>(ModeStatus.Off)
+    val sPenReady = MutableStateFlow(false)
     val event = MutableSharedFlow<Event>(extraBufferCapacity = 1)
 
     sealed class Event {
         data class Start(val mode: ModeStatus) : Event()
         data object Stop : Event()
         data object PreferencesUpdated: Event()
+        data object RecalibrateMotion : Event()
+        data object CalibrateRightwardMotion : Event()
     }
 
     enum class ModeStatus {

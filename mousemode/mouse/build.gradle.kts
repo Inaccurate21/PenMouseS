@@ -8,6 +8,7 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(project(":core:ui"))
     implementation(project(":mousemode:base"))
     implementation(project(":mousemode:basecursor"))
 
@@ -15,4 +16,5 @@ dependencies {
     implementation(files("../../libs/spenremote-v1.0.1.jar"))
 
     implementation(libs.androidx.core.ktx)
+    testImplementation(libs.junit)
 }

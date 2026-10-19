@@ -16,8 +16,7 @@ import android.view.WindowManager
 import android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
 import android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
 import android.widget.ImageView
-import com.google.firebase.Firebase
-import com.google.firebase.crashlytics.crashlytics
+import pl.jojczak.penmouses.core.common.utils.OptionalTelemetry
 import pl.jojczak.penmouses.core.common.notifications.NotificationsManager
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
@@ -27,7 +26,7 @@ import pl.jojczak.penmouses.mousemode.base.BaseMode
 import pl.jojczak.penmouses.mousemode.base.PenConst
 
 abstract class CursorMode<T : CursorAnimator>(
-    dispatchGesture: (GestureDescription, GestureResultCallback?, Handler?) -> Unit,
+    dispatchGesture: (GestureDescription, GestureResultCallback?, Handler?) -> Boolean,
     notificationsManager: NotificationsManager,
     preferences: PreferencesManager,
     sPenManager: SPenManager,
@@ -53,6 +52,12 @@ abstract class CursorMode<T : CursorAnimator>(
     )
 
     protected val view = ImageView(context)
+
+    private var layoutUpdatePending = false
+    private val updateLayout = Runnable {
+        layoutUpdatePending = false
+        if (view.isAttachedToWindow) windowManager.updateViewLayout(view, view.layoutParams)
+    }
 
     protected val cursorAnimator: T by lazy { animatorFactory(view) }
 
@@ -90,7 +95,7 @@ abstract class CursorMode<T : CursorAnimator>(
                     windowManager.addView(view, layoutParams)
                 } catch (e: Exception) {
                     Log.e(tagName, "Error adding cursor view to window manager", e)
-                    Firebase.crashlytics.recordException(e)
+                    OptionalTelemetry.recordException(e)
                     showErrorAndStopService(ERROR_WINDOW_MANAGER)
                 }
             }
@@ -104,6 +109,8 @@ abstract class CursorMode<T : CursorAnimator>(
     }
 
     override fun stop() {
+        view.removeCallbacks(updateLayout)
+        layoutUpdatePending = false
         super.stop()
         mainHandler.post {
             view.animate().setListener(null)
@@ -165,10 +172,10 @@ abstract class CursorMode<T : CursorAnimator>(
     protected fun updateCursorLayoutParams(block: WindowManager.LayoutParams.() -> Unit) {
         val lp = view.layoutParams as WindowManager.LayoutParams
         lp.block()
-        view.post {
-            if (view.isAttachedToWindow) {
-                windowManager.updateViewLayout(view, lp)
-            }
+        // Keep input coordinates current immediately; render at most once per display frame.
+        if (!layoutUpdatePending) {
+            layoutUpdatePending = true
+            view.postOnAnimation(updateLayout)
         }
     }
 

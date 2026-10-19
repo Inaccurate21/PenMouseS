@@ -202,6 +202,6 @@ class NotificationsManager @Inject constructor() {
     companion object {
         private const val TAG = "NotificationsManager"
         private const val ERROR_NOTIFICATION_ID = 1002
-        private const val MAIN_ACTIVITY_DEEPLINK = "penmouses://open_main"
+        private const val MAIN_ACTIVITY_DEEPLINK = "penmouses-live://open_main"
     }
 }

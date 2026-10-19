@@ -27,9 +27,16 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="penmouses" android:host="open_main" />
+                <data android:scheme="penmouses-live" android:host="open_main" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".service.MouseTileBridgeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="${applicationId}.tile"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <service
             android:name=".service.MouseService"
@@ -43,6 +50,17 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name=".service.MouseQuickSettingsTile"
+            android:label="@string/mouse_qs_tile_title"
+            android:icon="@drawable/stylus_24px"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
         </service>
 
         <receiver

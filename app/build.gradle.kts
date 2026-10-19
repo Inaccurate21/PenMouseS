@@ -1,22 +1,43 @@
 plugins {
     alias(libs.plugins.module.android.application)
-    alias(libs.plugins.firebase.crashlytics)
+    alias(libs.plugins.firebase.crashlytics) apply false
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.google.services)
+    alias(libs.plugins.google.services) apply false
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.plugin)
     alias(libs.plugins.ksp)
 }
 
+// A fork must build without the upstream maintainer's Firebase configuration or secrets.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
+// A stable private key is encrypted in the repository; only the owner controls
+// its GitHub Actions decryption secret. Local unsigned builds use default debug signing.
+val liveSigningSecret = System.getenv("LIVE_SIGNING_SECRET")?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "pl.jojczak.penmouses"
 
     defaultConfig {
-        applicationId = "pl.jojczak.penmouses"
+        applicationId = "pl.inaccurate21.penmouses.live"
+        versionNameSuffix = ""
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
+        create("stableLiveDebug") {
+            storeFile = file("signing/live-debug-keystore.p12")
+            storePassword = liveSigningSecret
+            keyPassword = liveSigningSecret
+            keyAlias = "penmouse-live"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
+        }
         create("release") {
             storeFile = file("keystore.jks")
             storePassword = System.getenv("KEYSTORE_PASSWORD")
@@ -40,6 +61,9 @@ android {
         }
         getByName("debug") {
             applicationIdSuffix = ".debug"
+            if (liveSigningSecret != null) {
+                signingConfig = signingConfigs.getByName("stableLiveDebug")
+            }
         }
     }
 

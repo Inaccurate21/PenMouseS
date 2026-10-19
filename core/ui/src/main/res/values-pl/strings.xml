@@ -1,0 +1,3 @@
+<resources>
+    <string name="realtime_drag_interrupted">Przeciąganie przerwane przez system lub limit bezpieczeństwa. Puść przycisk rysika i spróbuj ponownie. Jeśli problem się powtarza, wyłącz tryb na żywo.</string>
+</resources>

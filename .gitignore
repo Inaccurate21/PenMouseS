@@ -1,4 +1,5 @@
 *.iml
+**/.kotlin/
 .gradle
 /local.properties
 /.idea/caches
@@ -24,3 +25,8 @@ local.properties
 /app/keystore.jks
 /app/release
 /app/google-services.json
+
+# Never commit the decrypted private key or its password.
+/app/signing/*.p12
+/app/signing/*.jks
+/app/signing/*.txt

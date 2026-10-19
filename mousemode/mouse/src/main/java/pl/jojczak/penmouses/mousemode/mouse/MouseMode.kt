@@ -3,17 +3,24 @@ package pl.jojczak.penmouses.mousemode.mouse
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Path
 import android.graphics.Point
 import android.os.Handler
 import android.os.SystemClock
-import android.util.Log
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.samsung.android.sdk.penremote.ButtonEvent
 import pl.jojczak.penmouses.core.common.notifications.NotificationsManager
+import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent
 import pl.jojczak.penmouses.core.common.spen.AppToServiceEvent.ModeStatus
 import pl.jojczak.penmouses.core.common.spen.SPenManager
 import pl.jojczak.penmouses.core.common.spen.listener.ButtonAction
 import pl.jojczak.penmouses.core.common.spen.listener.ConnectionResultCallback
+import pl.jojczak.penmouses.core.common.utils.DiagnosticRecorder
+import pl.jojczak.penmouses.core.common.utils.GestureTraceRecorder
 import pl.jojczak.penmouses.core.common.utils.PrefKeys
 import pl.jojczak.penmouses.core.common.utils.PreferencesManager
 import pl.jojczak.penmouses.core.common.utils.getDisplaySize
@@ -22,14 +29,18 @@ import pl.jojczak.penmouses.mousemode.base.PenRunnable
 import pl.jojczak.penmouses.mousemode.basecursor.CursorMode
 import kotlin.math.pow
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
+import kotlin.math.hypot
+import pl.jojczak.penmouses.core.ui.R as coreR
 
 class MouseMode(
-    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Unit,
+    dispatchGesture: (GestureDescription, AccessibilityService.GestureResultCallback?, Handler?) -> Boolean,
     notificationsManager: NotificationsManager,
     preferences: PreferencesManager,
     sPenManager: SPenManager,
     stopService: () -> Unit,
     context: Context,
+    private val globalAction: (Int) -> Boolean = { false },
 ) : CursorMode<MouseAnimator>(
     notificationsManager = notificationsManager,
     dispatchGesture = dispatchGesture,
@@ -41,8 +52,262 @@ class MouseMode(
     animatorFactory = { view -> MouseAnimator(view) }
 ) {
     private var prefSensitivity = cursorPreferences.getSensitivity()
+    private var prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+    private var prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
+    private val airMotionAcceleration = AirMotionAcceleration()
+    // Smooth noisy Air Motion *inputs*, not rendered coordinates or click gestures.
+    private val airMotionInputStabilizer = AirMotionInputStabilizer()
+    private val motionBurstGovernor = MotionBurstGovernor(SystemClock::uptimeMillis)
+    // Only capture full samples around bursts when the existing detailed tracing is enabled.
+    // This is observational: never feed trace state back into pointer movement.
+    private val motionTrace = MotionTraceWindow(
+        beforeCount = 12,
+        afterCount = 12,
+        log = { DiagnosticRecorder.record("motion-frame", it) },
+    )
+    private var previousTraceSdkTimestampMs: Long? = null
+    private var previousTraceArrivalMs: Long? = null
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
+
+    private data class DragSettings(
+        val enabled: Boolean,
+        val durationMs: Long,
+        val adaptive: Boolean,
+        val lateMotion: Boolean,
+    )
+    private fun readDragSettings() = DragSettings(
+        preferences.get(PrefKeys.MOUSE_REALTIME_DRAG),
+        preferences.get(PrefKeys.MOUSE_DRAG_SEGMENT_MS).toLong(),
+        preferences.get(PrefKeys.MOUSE_ADAPTIVE_DRAG),
+        preferences.get(PrefKeys.MOUSE_CAPTURE_LATE_MOTION),
+    )
+    private var dragSettings = readDragSettings()
+    private var pendingDragSettings: DragSettings? = null
+    private var realtimeEnabled = dragSettings.enabled
+    private var dragController: RealtimeDragController? = null
+    private var cachedCursorStyle = Triple(
+        preferences.get(PrefKeys.MOUSE_CURSOR_TYPE),
+        preferences.get(PrefKeys.MOUSE_CURSOR_SIZE),
+        preferences.get(PrefKeys.MOUSE_CURSOR_ALPHA),
+    )
+    private var cachedOverlayStyle: List<Any> = readOverlayStyle()
+    private fun readOverlayStyle(): List<Any> = listOf(
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_X),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_Y),
+        preferences.get(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR),
+    )
+    private var prefHoldThreshold = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS)
+
+    private val sPenBatteryOverlay = SPenBatteryOverlay(context, preferences)
+    private var legacyButtonDown = false
+    private var ignoreUntilRelease = false
+    private var motionX: Float? = null
+    private var motionY: Float? = null
+    private var receiverRegistered = false
+    private var dragGeneration = 0L
+    private var lastDiagnosticMotionMs = 0L
+    private var lastMotionBudgetDiagnosticMs = 0L
+    private var buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
+    private var doubleButtonAction = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+    private var tripleButtonAction = preferences.get(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION).toInt()
+    private var selectionController: RealtimeDragController? = null
+    private var selectionGeneration = 0L
+    private var selectionHeld = false
+    private var shortcutRouter: SPenButtonShortcutRouter? = buildShortcutRouter()
+    private var rightwardCalibration: RightwardMotionCalibration? = null
+    private var finishCalibration: Runnable? = null
+
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                DiagnosticRecorder.record("lifecycle", "screen off; stopping mouse")
+                stopService()
+            }
+        }
+    }
+
+    private fun newDragController(settings: DragSettings = dragSettings): RealtimeDragController {
+        val generation = ++dragGeneration
+        val backend = AndroidDragBackend(dispatchGesture, settings.adaptive)
+        return RealtimeDragController(
+            backend = backend,
+            schedule = backend::schedule,
+            segmentDurationMs = settings.durationMs,
+            releaseGraceMs = if (settings.lateMotion) 140L else 0L,
+            clockMs = SystemClock::uptimeMillis,
+            onReleaseGrace = { detail ->
+                DiagnosticRecorder.record("late-motion", detail)
+            },
+            onReleaseBrake = { detail ->
+                DiagnosticRecorder.record("drag-brake", detail)
+            },
+            onFinished = { result ->
+                if (generation != dragGeneration || !canStartJobs) return@RealtimeDragController
+                cursorAnimator.releaseCursor()
+                DiagnosticRecorder.record("drag", "ended result=$result")
+                GestureTraceRecorder.dragFinished(result.name)
+                ignoreUntilRelease = sPenManager.isSPenButtonDown
+                hideCursor()
+                pendingDragSettings?.let { pending ->
+                    applyDragSettings(pending)
+                }
+                if (result != RealtimeDragController.Result.RELEASED &&
+                    result != RealtimeDragController.Result.CLOSED) {
+                    Toast.makeText(context, context.getString(coreR.string.realtime_drag_interrupted), Toast.LENGTH_LONG).show()
+                }
+            },
+        )
+    }
+
+    private fun applyDragSettings(newSettings: DragSettings) {
+        if (dragController?.isActive == true) {
+            pendingDragSettings = newSettings
+            DiagnosticRecorder.record("preferences", "deferred drag config until release")
+            return
+        }
+        pendingDragSettings = null
+        ++dragGeneration
+        dragController?.close()
+        dragSettings = newSettings
+        realtimeEnabled = newSettings.enabled
+        dragController = if (newSettings.enabled) newDragController(newSettings) else null
+        DiagnosticRecorder.record("preferences", "drag engine updated settings=$newSettings")
+    }
+
+    private fun buildShortcutRouter(): SPenButtonShortcutRouter? {
+        if (buttonHoldAction == 0 && doubleButtonAction == 0 && tripleButtonAction == 0) return null
+        return SPenButtonShortcutRouter(
+            holdAction = buttonHoldAction,
+            doubleAction = doubleButtonAction,
+            tripleAction = tripleButtonAction,
+            holdThresholdMs = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS).toLong(),
+            schedule = { duration, callback ->
+                val task = Runnable { callback() }
+                mainHandler.postDelayed(task, duration)
+                val cancel: () -> Unit = { mainHandler.removeCallbacks(task) }
+                cancel
+            },
+            dragStart = { handleDefaultButtonEvent(ButtonEvent.ACTION_DOWN) },
+            dragRelease = { handleDefaultButtonEvent(ButtonEvent.ACTION_UP) },
+            singleTap = { performTouchAtCursor(55L) },
+            holdShortcut = { action ->
+                DiagnosticRecorder.record("button-shortcut", "hold action=$action")
+                performShortcut(action)
+            },
+            doubleShortcut = { action ->
+                DiagnosticRecorder.record("button-shortcut", "double action=$action")
+                performShortcut(action)
+            },
+            tripleShortcut = { action ->
+                DiagnosticRecorder.record("button-shortcut", "triple action=$action")
+                performShortcut(action)
+            },
+            selectionRelease = { releaseTextSelection() },
+        )
+    }
+
+    /** Long press and continuous text selection while the physical S Pen button is held. */
+    private fun beginTextSelection() {
+        if (!canStartJobs || selectionController?.isActive == true ||
+            dragController?.isActive == true || legacyButtonDown) return
+        val generation = ++selectionGeneration
+        val backend = AndroidDragBackend(dispatchGesture, adaptivePacing = false)
+        val controller = RealtimeDragController(
+            backend = backend,
+            schedule = backend::schedule,
+            segmentDurationMs = 32L,
+            releaseGraceMs = 0L,
+            initialDownDurationMs = 620L,
+            flingBrakeEnabled = false,
+            clockMs = SystemClock::uptimeMillis,
+            onFinished = { result ->
+                if (generation != selectionGeneration) return@RealtimeDragController
+                selectionHeld = false
+                selectionController = null
+                cursorAnimator.releaseCursor()
+                DiagnosticRecorder.record("text-selection", "finished result=$result")
+                hideCursor()
+            },
+        )
+        selectionController = controller
+        selectionHeld = true
+        showCursor()
+        val pos = getCursorPos()
+        val accepted = controller.press(
+            RealtimeDragController.Point(pos.x.toFloat(), pos.y.toFloat())
+        )
+        if (accepted) {
+            cursorAnimator.clickCursor()
+            DiagnosticRecorder.record("text-selection", "start x=${pos.x} y=${pos.y} initialHoldMs=620 fineMotion=0.30")
+        } else {
+            selectionHeld = false
+            selectionController = null
+            DiagnosticRecorder.record("text-selection", "failed to begin")
+        }
+    }
+
+    private fun releaseTextSelection() {
+        if (!selectionHeld) return
+        selectionHeld = false
+        DiagnosticRecorder.record("text-selection", "button released; pointer up requested")
+        selectionController?.release()
+    }
+
+    private fun performShortcut(action: Int) {
+        when (action) {
+            1 -> performTouchAtCursor(600L) // Android context menu via long-touch
+            2 -> performDoubleTapAtCursor()
+            3 -> {
+                val accepted = globalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                DiagnosticRecorder.record("button-shortcut", "BACK success=$accepted")
+            }
+            4 -> {
+                val accepted = globalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+                DiagnosticRecorder.record("button-shortcut", "HOME success=$accepted")
+            }
+            5 -> performTripleTapAtCursor()
+        }
+    }
+
+    /** Accessibility gestures are touchscreen input, not native mouse secondary button events. */
+    private fun performTouchAtCursor(durationMs: Long) {
+        val point = getCursorPos()
+        val staticPath = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
+        val stroke = GestureDescription.StrokeDescription(staticPath, 0L, durationMs)
+        GestureTraceRecorder.segment(point.x.toFloat(), point.y.toFloat(), point.x.toFloat(), point.y.toFloat(), durationMs, false, false)
+        val accepted = dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        DiagnosticRecorder.record("hold", "touch durationMs=$durationMs accepted=$accepted")
+    }
+
+    private fun performDoubleTapAtCursor() {
+        val point = getCursorPos()
+        val path = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 45L))
+            .addStroke(GestureDescription.StrokeDescription(path, 125L, 45L))
+            .build()
+        GestureTraceRecorder.segment(point.x.toFloat(), point.y.toFloat(), point.x.toFloat(), point.y.toFloat(), 170L, false, false)
+        val accepted = dispatchGesture(gesture, null, null)
+        DiagnosticRecorder.record("hold", "doubleTap accepted=$accepted")
+    }
+
+    private fun performTripleTapAtCursor() {
+        val point = getCursorPos()
+        val path = Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
+        val builder = GestureDescription.Builder()
+        repeat(3) { index ->
+            builder.addStroke(GestureDescription.StrokeDescription(path, index * 130L, 45L))
+        }
+        val accepted = dispatchGesture(builder.build(), null, null)
+        DiagnosticRecorder.record("button-shortcut", "tripleTap accepted=$accepted")
+    }
 
     private var path = Path()
     private var pathStartTime: Long = 0
@@ -54,13 +319,32 @@ class MouseMode(
 
     override fun start() {
         super.start()
+        airMotionInputStabilizer.reset()
+        motionBurstGovernor.reset()
+        motionTrace.reset()
+        previousTraceSdkTimestampMs = null
+        previousTraceArrivalMs = null
 
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
+        DiagnosticRecorder.record("mode", "start mouse realtime=$realtimeEnabled")
+        if (realtimeEnabled) dragController = newDragController()
+        sPenBatteryOverlay.refresh()
+        ContextCompat.registerReceiver(context, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
+        receiverRegistered = true
+        sPenManager.onConnectionLost = {
+            DiagnosticRecorder.record("connection", "S Pen connection lost; stopping mouse")
+            stopService()
+        }
 
-        sPenManager.connect(object : ConnectionResultCallback() {
+        var attempts = 0
+        val connectionCallback = object : ConnectionResultCallback() {
             override fun onSuccess() {
+                DiagnosticRecorder.record("connection", "S Pen connected after attempts=${attempts + 1}")
+                AppToServiceEvent.sPenReady.value = true
+                if (!canStartJobs) return
                 pingCursor()
                 mainHandler.postDelayed({
+                    if (!canStartJobs) return@postDelayed
                     sPenManager.registerButtonEventListener(
                         ::onButtonEvent,
                         ::showErrorAndStopService
@@ -71,19 +355,151 @@ class MouseMode(
                     )
                 }, PenConst.DELAY_TO_EVENT_REGISTER_MS)
             }
-        })
+
+            override fun onFailure(errorCode: Int) {
+                AppToServiceEvent.sPenReady.value = false
+                DiagnosticRecorder.record("connection", "failed code=$errorCode attempt=${attempts + 1}")
+                if (canStartJobs && attempts < 2) {
+                    attempts++
+                    mainHandler.postDelayed({
+                        if (!canStartJobs) return@postDelayed
+                        val lostCallback = sPenManager.onConnectionLost
+                        sPenManager.disconnect()
+                        sPenManager.onConnectionLost = lostCallback
+                        sPenManager.connect(this)
+                    }, 350L * attempts)
+                } else {
+                    showErrorAndStopService(errorCode)
+                }
+            }
+        }
+        sPenManager.connect(connectionCallback)
+    }
+
+    fun refreshBatteryStatus() = sPenBatteryOverlay.refresh()
+
+    /**
+     * Calibrate using a deliberate rightward S Pen sweep, not an unreliable
+     * automatic orientation guess from arbitrary cursor movements.
+     */
+    fun startDirectionCalibration() {
+        if (!canStartJobs || dragController?.isActive == true ||
+            legacyButtonDown || sPenManager.isSPenButtonDown) {
+            Toast.makeText(context, "Zwolnij przycisk S Pena i spróbuj ponownie", Toast.LENGTH_SHORT).show()
+            return
+        }
+        finishCalibration?.let(mainHandler::removeCallbacks)
+        rightwardCalibration = RightwardMotionCalibration()
+        airMotionAcceleration.reset()
+        DiagnosticRecorder.record("calibration", "start: move the S Pen right for 3s")
+        Toast.makeText(context, "Teraz przesuwaj S Pen w PRAWO przez 3 sekundy", Toast.LENGTH_LONG).show()
+        val task = Runnable {
+            finishCalibration = null
+            val sample = rightwardCalibration ?: return@Runnable
+            rightwardCalibration = null
+            val rotation = sample.inferRotation()
+            DiagnosticRecorder.record("calibration", sample.summary())
+            if (rotation == null) {
+                Toast.makeText(context, "Kalibracja niepewna — powtórz wyraźniejszy ruch", Toast.LENGTH_LONG).show()
+            } else {
+                // One guided movement alone is not enough to safely apply a correction.
+                // Keep the existing orientation and provide a suggestion for manual testing.
+                DiagnosticRecorder.record("calibration", "suggestedAxis=${rotation} currentAxis=${prefRotation} autoApply=false")
+                Toast.makeText(context, "Test wskazuje ${rotation}°. Nie zmieniono osi — ustaw ją ręcznie, jeśli chcesz.", Toast.LENGTH_LONG).show()
+            }
+        }
+        finishCalibration = task
+        mainHandler.postDelayed(task, 3_000L)
+    }
+
+    fun recalibrateMotion() {
+        if (!canStartJobs) return
+        DiagnosticRecorder.record("motion", "manual sensor listener restart")
+        airMotionAcceleration.reset()
+        airMotionInputStabilizer.reset()
+        motionBurstGovernor.reset()
+        motionTrace.reset()
+        previousTraceSdkTimestampMs = null
+        previousTraceArrivalMs = null
+        motionX = null
+        motionY = null
+        sPenManager.unregisterAirMotionEventListener()
+        sPenManager.registerAirMotionEventListener(::onAirMotionEvent, ::showErrorAndStopService)
     }
 
     override fun stop() {
+        finishCalibration?.let(mainHandler::removeCallbacks)
+        finishCalibration = null
+        rightwardCalibration = null
+        shortcutRouter?.cancel()
+        ++selectionGeneration
+        selectionHeld = false
+        selectionController?.close()
+        selectionController = null
+        DiagnosticRecorder.record("mode", "stop mouse")
+        AppToServiceEvent.sPenReady.value = false
+        ++dragGeneration
+        dragController?.close()
+        dragController = null
+        sPenBatteryOverlay.hide()
+        legacyButtonDown = false
+        airMotionAcceleration.reset()
+        airMotionInputStabilizer.reset()
+        motionBurstGovernor.reset()
+        motionTrace.reset()
+        previousTraceSdkTimestampMs = null
+        previousTraceArrivalMs = null
+        sPenManager.onConnectionLost = null
+        if (receiverRegistered) {
+            context.unregisterReceiver(screenOffReceiver)
+            receiverRegistered = false
+        }
         super.stop()
         sPenManager.disconnect()
     }
 
     private fun onButtonEvent(@ButtonAction type: Int, timeStamp: Long) {
+        if (!canStartJobs) return
+        DiagnosticRecorder.record("button", "type=$type hold=$buttonHoldAction double=$doubleButtonAction triple=$tripleButtonAction realtime=$realtimeEnabled timestamp=$timeStamp")
+        if (type == ButtonEvent.ACTION_UP && ignoreUntilRelease) {
+            ignoreUntilRelease = false
+            return
+        }
+        if (ignoreUntilRelease) return
+        val router = shortcutRouter
+        if (router != null) {
+            if (type == ButtonEvent.ACTION_DOWN) {
+                showCursor()
+                router.down()
+            } else if (type == ButtonEvent.ACTION_UP) {
+                router.up()
+                hideCursor()
+            }
+            return
+        }
+        handleDefaultButtonEvent(type)
+    }
+
+    private fun handleDefaultButtonEvent(type: Int) {
+        if (realtimeEnabled) {
+            if (type == ButtonEvent.ACTION_DOWN) {
+                showCursor()
+                val point = getCursorPos()
+                if (dragController?.press(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat())) == true) {
+                    cursorAnimator.clickCursor()
+                }
+            } else if (type == ButtonEvent.ACTION_UP) {
+                dragController?.release()
+            }
+            return
+        }
         if (type == ButtonEvent.ACTION_DOWN) {
+            if (legacyButtonDown) return
+            legacyButtonDown = true
             showCursor()
             val cursorPosition = getCursorPos()
-            pathStartTime = timeStamp
+            // Use one known monotonic clock; Samsung timestamp units vary by SDK/framework.
+            pathStartTime = SystemClock.uptimeMillis()
             cursorStartPos = Point(cursorPosition)
             cursorAnimator.clickCursor()
 
@@ -92,36 +508,123 @@ class MouseMode(
 
             mainHandler.post(updateStrokePathJob)
         } else if (type == ButtonEvent.ACTION_UP) {
+            if (!legacyButtonDown) return
+            legacyButtonDown = false
             hideCursor()
             cursorAnimator.releaseCursor()
 
             mainHandler.removeCallbacks(updateStrokePathJob)
 
-            performGesture(duration = timeStamp - pathStartTime)
+            performGesture(duration = SystemClock.uptimeMillis() - pathStartTime)
         }
     }
 
     private fun onAirMotionEvent(deltaX: Float, deltaY: Float, timeStamp: Long) {
-        Log.d(tagName, "Motion event: X: $deltaX, Y: $deltaY")
+        if (!canStartJobs || !deltaX.isFinite() || !deltaY.isFinite()) return
+        if (rightwardCalibration != null) {
+            rightwardCalibration?.add(deltaX, deltaY)
+            return
+        }
         pingCursor()
 
         val (screenWidth, screenHeight) = getDisplaySize(getDisplay())
 
-        // @formatter:off
-        updateCursorLayoutParams {
-            x = (x + (deltaX * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).toInt()).coerceIn(0, screenWidth)
-            y = (y + (-deltaY * prefSensitivity * S_PEN_SENSITIVITY_MULTIPLIER).toInt()).coerceIn(0, screenHeight)
+        val position = getCursorPos()
+        val conditioned = airMotionInputStabilizer.filter(deltaX, deltaY, timeStamp)
+        val movement = airMotionAcceleration.convert(
+            conditioned.dx, conditioned.dy, timeStamp, prefSensitivity, prefAcceleration, prefRotation
+        )
+        if (DiagnosticRecorder.isEnabled() && SystemClock.uptimeMillis() - lastDiagnosticMotionMs > 160L) {
+            lastDiagnosticMotionMs = SystemClock.uptimeMillis()
+            DiagnosticRecorder.record("motion", "deltaX=$deltaX deltaY=$deltaY timestamp=$timeStamp pxX=${movement.dx} pxY=${movement.dy} axis=$prefRotation displayRotation=${getDisplay().rotation}")
         }
-        // @formatter:on
+        val stable = MotionJumpLimiter.stabilize(movement.dx, movement.dy)
+        if (stable.rawPixels > 600f) {
+            DiagnosticRecorder.record(
+                "motion-anomaly",
+                "softLimited rawDistancePx=${stable.rawPixels} effectivePx=${stable.limitedPixels} " +
+                    "rawX=${movement.dx} rawY=${movement.dy} " +
+                    "effectiveX=${stable.dx} effectiveY=${stable.dy}"
+            )
+        }
+        // A series of large impulses can accumulate into a teleport even after
+        // every individual sample is limited to ~420px. Restrict total distance
+        // per elapsed time too. Discard excess instead of replaying later.
+        val governed = motionBurstGovernor.filter(stable.dx, stable.dy)
+        val now = SystemClock.uptimeMillis()
+        if (DiagnosticRecorder.isEnabled() && governed.reducedPixels > 24f &&
+            now - lastMotionBudgetDiagnosticMs > 200L) {
+            lastMotionBudgetDiagnosticMs = now
+            DiagnosticRecorder.record(
+                "motion-burst",
+                "incomingPx=${governed.requestedPixels} acceptedPx=${governed.acceptedPixels} " +
+                    "discardedPx=${governed.reducedPixels} " +
+                    "elapsedMs=${governed.elapsedMs} remainingBudgetPx=${governed.budgetPixels} " +
+                    "sensitivity=$prefSensitivity acceleration=$prefAcceleration"
+            )
+        }
+        shortcutRouter?.onPointerMotion(governed.acceptedPixels)
+        // Fine control applies exclusively while the text-selection hold is active.
+        val fineFactor = if (selectionHeld) PrefKeys.MOUSE_TEXT_SELECTION_SENSITIVITY_SCALE else 1f
+        motionX = ((motionX ?: position.x.toFloat()) + governed.dx * fineFactor)
+            .coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
+        motionY = ((motionY ?: position.y.toFloat()) + governed.dy * fineFactor)
+            .coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
+        updateCursorLayoutParams {
+            x = motionX!!.roundToInt()
+            y = motionY!!.roundToInt()
+        }
+        val point = getCursorPos()
+        if (selectionHeld) {
+            selectionController?.move(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat()))
+        } else if (realtimeEnabled) {
+            dragController?.move(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat()))
+        }
+
+        // Existing 160ms [motion] sampling misses intervening ~40ms SDK callbacks.
+        // Detailed mode records contiguous frames before and after each detected burst.
+        // The logger writes to disk on its dedicated worker, not in the S Pen callback.
+        if (GestureTraceRecorder.isEnabled()) {
+            val sdkInterval = previousTraceSdkTimestampMs?.let { timeStamp - it } ?: -1L
+            val callbackInterval = previousTraceArrivalMs?.let { now - it } ?: -1L
+            previousTraceSdkTimestampMs = timeStamp
+            previousTraceArrivalMs = now
+            val rawUnitDistance = hypot(deltaX, deltaY)
+            val unboostedPixels = rawUnitDistance * 20f * prefSensitivity.coerceIn(1f, 400f)
+            val appliedGain = if (unboostedPixels > 0f) {
+                stable.rawPixels / unboostedPixels
+            } else 1f
+            motionTrace.add(
+                detail = "uptimeMs=$now sdkTimestampMs=$timeStamp sdkDtMs=$sdkInterval " +
+                    "callbackDtMs=$callbackInterval sdkDx=$deltaX sdkDy=$deltaY " +
+                    "filteredDx=${conditioned.dx} filteredDy=${conditioned.dy} " +
+                    "filterMode=${conditioned.mode} gain=$appliedGain " +
+                    "rawX=${movement.dx} rawY=${movement.dy} " +
+                    "softX=${stable.dx} softY=${stable.dy} " +
+                    "outX=${governed.dx} outY=${governed.dy} " +
+                    "discarded=${governed.reducedPixels} budget=${governed.budgetPixels} " +
+                    "cursorBefore=(${position.x},${position.y}) " +
+                    "cursorAfter=(${motionX!!.roundToInt()},${motionY!!.roundToInt()}) " +
+                    "sensitivity=$prefSensitivity accel=$prefAcceleration axis=$prefRotation",
+                trigger = stable.rawPixels > 240f ||
+                    governed.reducedPixels > 24f ||
+                    (sdkInterval != -1L && (sdkInterval <= 0L || sdkInterval > 500L)) ||
+                    (callbackInterval != -1L && callbackInterval < 0L),
+            )
+        } else {
+            previousTraceSdkTimestampMs = null
+            previousTraceArrivalMs = null
+            motionTrace.reset()
+        }
     }
 
     private val updateStrokePathJob = object : PenRunnable(canStartJobs) {
         override fun callback() {
-            if (!sPenManager.isSPenButtonDown) return
+            if (!legacyButtonDown) return
 
-            val duration = SystemClock.elapsedRealtime() - pathStartTime
+            val duration = SystemClock.uptimeMillis() - pathStartTime
             if (duration >= PenConst.MAX_CLICK_TIME_MS) {
-                sPenManager.isSPenButtonDown = false
+                legacyButtonDown = false
                 cursorAnimator.releaseCursor()
                 performGesture(PenConst.MAX_CLICK_TIME_MS)
                 return
@@ -148,8 +651,9 @@ class MouseMode(
             (duration / 2) to path
         }
 
-        val stroke = GestureDescription.StrokeDescription(mPath, 0, mDuration)
+        val stroke = GestureDescription.StrokeDescription(mPath, 0, mDuration.coerceIn(1L, PenConst.MAX_CLICK_TIME_MS))
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        GestureTraceRecorder.segment(cursorStartPos.x.toFloat(), cursorStartPos.y.toFloat(), cursorPosition.x.toFloat(), cursorPosition.y.toFloat(), mDuration, false, false)
         dispatchGesture(gesture, null, null)
     }
 
@@ -177,6 +681,8 @@ class MouseMode(
     }
 
     private fun hideCursor() {
+        if (!canStartJobs || dragController?.isActive == true ||
+            selectionController?.isActive == true || legacyButtonDown) return
         if (prefHideDelay == PrefKeys.MOUSE_CURSOR_HIDE_DELAY.range.endInclusive.toLong()) {
             if (prefIsSleepEnabled) {
                 mainHandler.postDelayed(sleepJob, prefHideDelay + SLEEP_DELAY_MS_HIDING_DISABLED)
@@ -203,16 +709,75 @@ class MouseMode(
     }
 
     override fun preferencesUpdated() {
-        super.preferencesUpdated()
+        // Updating acceleration/sensitivity must not reset either sensor velocity
+        // estimation or the in-flight gesture. Previous code rebuilt everything
+        // for every slider change, including cursor bitmap and S Pen acceleration.
+        val newSensitivity = cursorPreferences.getSensitivity()
+        val newAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
+        val newRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
+
+        val newVisual = Triple(
+            preferences.get(PrefKeys.MOUSE_CURSOR_TYPE),
+            preferences.get(PrefKeys.MOUSE_CURSOR_SIZE),
+            preferences.get(PrefKeys.MOUSE_CURSOR_ALPHA),
+        )
+        if (cachedCursorStyle != newVisual) {
+            cachedCursorStyle = newVisual
+            super.preferencesUpdated()
+            cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
+            DiagnosticRecorder.record("preferences", "cursor appearance updated")
+        }
+
+        val newOverlay = readOverlayStyle()
+        if (newOverlay != cachedOverlayStyle) {
+            cachedOverlayStyle = newOverlay
+            sPenBatteryOverlay.refresh()
+        }
+
+        val newDrag = readDragSettings()
+        if (newDrag != (pendingDragSettings ?: dragSettings)) {
+            applyDragSettings(newDrag)
+        }
+
+        val newHold = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
+        val newDouble = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
+        val newTriple = preferences.get(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION).toInt()
+        val newThreshold = preferences.get(PrefKeys.MOUSE_HOLD_THRESHOLD_MS)
+        if (newHold != buttonHoldAction || newDouble != doubleButtonAction ||
+            newTriple != tripleButtonAction || newThreshold != prefHoldThreshold) {
+            shortcutRouter?.cancel()
+            buttonHoldAction = newHold
+            doubleButtonAction = newDouble
+            tripleButtonAction = newTriple
+            prefHoldThreshold = newThreshold
+            shortcutRouter = buildShortcutRouter()
+            DiagnosticRecorder.record("preferences", "button shortcuts updated")
+        }
+
+        if (newRotation != prefRotation) {
+            prefRotation = newRotation
+            airMotionAcceleration.reset()
+            airMotionInputStabilizer.reset()
+            motionBurstGovernor.reset()
+            DiagnosticRecorder.record("preferences", "axis changed; sensor velocity reinitialized")
+        }
+        val sensitivityChanged = newSensitivity != prefSensitivity
+        val accelerationChanged = newAcceleration != prefAcceleration
+        prefSensitivity = newSensitivity
+        prefAcceleration = newAcceleration
+
         prefHideDelay = cursorPreferences.getHideDelay()
-        prefSensitivity = cursorPreferences.getSensitivity()
         prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
-        cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
-        pingCursor()
+
+        DiagnosticRecorder.record(
+            "preferences",
+            "axis=$prefRotation sensitivity=$prefSensitivity acceleration=$prefAcceleration " +
+                "sensChanged=$sensitivityChanged accelChanged=$accelerationChanged " +
+                "sensorReset=false dragActive=${dragController?.isActive == true}"
+        )
     }
 
     companion object {
-        private const val S_PEN_SENSITIVITY_MULTIPLIER = 20
         private const val CURSOR_MOVE_THRESHOLD_PX = 50
         private const val SLEEP_DELAY_MS = 60000L // 60s
         private const val SLEEP_DELAY_MS_HIDING_DISABLED = 300000L // 5min

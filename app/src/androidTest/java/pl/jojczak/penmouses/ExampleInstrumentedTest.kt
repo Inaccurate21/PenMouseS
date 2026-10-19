@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("pl.jojczak.penmouses", appContext.packageName)
+        assertEquals("pl.inaccurate21.penmouses.live.debug", appContext.packageName)
     }
 }

@@ -29,6 +29,9 @@ class PreferencesManager(
                 is Int -> {
                     putInt(key.name, value)
                 }
+                is Long -> {
+                    putLong(key.name, value)
+                }
 
                 is CursorType -> {
                     putString(key.name, value.name)
@@ -53,6 +56,9 @@ class PreferencesManager(
             is Int -> {
                 prefs.getInt(key.name, key.default) as T
             }
+            is Long -> {
+                prefs.getLong(key.name, key.default) as T
+            }
 
             is CursorType -> {
                 CursorType.fromValue(
@@ -69,10 +75,33 @@ class PreferencesManager(
     fun reset() {
         prefs.edit {
             put(PrefKeys.MOUSE_SENSITIVITY, PrefKeys.MOUSE_SENSITIVITY.default)
+            put(PrefKeys.MOUSE_ACCELERATION, PrefKeys.MOUSE_ACCELERATION.default)
+            put(PrefKeys.MOUSE_HOLD_ACTION, PrefKeys.MOUSE_HOLD_ACTION.default)
+            put(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION, PrefKeys.MOUSE_DOUBLE_PRESS_ACTION.default)
+            put(PrefKeys.MOUSE_TRIPLE_PRESS_ACTION, PrefKeys.MOUSE_TRIPLE_PRESS_ACTION.default)
+            put(PrefKeys.MOUSE_HOLD_THRESHOLD_MS, PrefKeys.MOUSE_HOLD_THRESHOLD_MS.default)
+            put(PrefKeys.MOUSE_AXIS_ROTATION, PrefKeys.MOUSE_AXIS_ROTATION.default)
+            put(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED, PrefKeys.MOUSE_DIAGNOSTICS_ENABLED.default)
+            put(PrefKeys.MOUSE_GESTURE_TRACE_ENABLED, PrefKeys.MOUSE_GESTURE_TRACE_ENABLED.default)
+            put(PrefKeys.S_PEN_OBSERVED_LEVEL, PrefKeys.S_PEN_OBSERVED_LEVEL.default)
+            put(PrefKeys.S_PEN_OBSERVED_AT, PrefKeys.S_PEN_OBSERVED_AT.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY, PrefKeys.MOUSE_BATTERY_OVERLAY.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED, PrefKeys.MOUSE_BATTERY_OVERLAY_UNLOCKED.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA, PrefKeys.MOUSE_BATTERY_OVERLAY_ALPHA.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME, PrefKeys.MOUSE_BATTERY_OVERLAY_SHOW_TIME.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT, PrefKeys.MOUSE_BATTERY_OVERLAY_COMPACT.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE, PrefKeys.MOUSE_BATTERY_OVERLAY_SCALE.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_X, PrefKeys.MOUSE_BATTERY_OVERLAY_X.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_Y, PrefKeys.MOUSE_BATTERY_OVERLAY_Y.default)
+            put(PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR, PrefKeys.MOUSE_BATTERY_OVERLAY_COLOR.default)
             put(PrefKeys.MOUSE_CURSOR_SIZE, PrefKeys.MOUSE_CURSOR_SIZE.default)
             put(PrefKeys.MOUSE_CURSOR_TYPE, PrefKeys.MOUSE_CURSOR_TYPE.default)
             put(PrefKeys.MOUSE_CURSOR_HIDE_DELAY, PrefKeys.MOUSE_CURSOR_HIDE_DELAY.default)
             put(PrefKeys.MOUSE_SLEEP_ENABLED, PrefKeys.MOUSE_SLEEP_ENABLED.default)
+            put(PrefKeys.MOUSE_REALTIME_DRAG, PrefKeys.MOUSE_REALTIME_DRAG.default)
+            put(PrefKeys.MOUSE_DRAG_SEGMENT_MS, PrefKeys.MOUSE_DRAG_SEGMENT_MS.default)
+            put(PrefKeys.MOUSE_ADAPTIVE_DRAG, PrefKeys.MOUSE_ADAPTIVE_DRAG.default)
+            put(PrefKeys.MOUSE_CAPTURE_LATE_MOTION, PrefKeys.MOUSE_CAPTURE_LATE_MOTION.default)
             put(PrefKeys.MOUSE_CURSOR_ALPHA, PrefKeys.MOUSE_CURSOR_ALPHA.default)
             put(PrefKeys.POINT_CURSOR_TYPE, PrefKeys.POINT_CURSOR_TYPE.default)
             put(PrefKeys.POINT_CURSOR_ALPHA, PrefKeys.POINT_CURSOR_ALPHA.default)
@@ -89,12 +118,36 @@ class PreferencesManager(
 }
 
 object PrefKeys {
-    val MOUSE_SENSITIVITY = PrefKey("spen_sensitivity", 50f, 1f, 1f..100f)
+    val MOUSE_SENSITIVITY = PrefKey("spen_sensitivity", 50f, 1f, 1f..400f)
+    val MOUSE_BATTERY_OVERLAY = PrefKey("mouse_battery_overlay", false)
+    val MOUSE_BATTERY_OVERLAY_UNLOCKED = PrefKey("mouse_battery_overlay_unlocked", false)
+    val MOUSE_BATTERY_OVERLAY_SHOW_TIME = PrefKey("mouse_battery_overlay_show_time", true)
+    val MOUSE_BATTERY_OVERLAY_COMPACT = PrefKey("mouse_battery_overlay_compact", false)
+    val MOUSE_BATTERY_OVERLAY_SCALE = PrefKey("mouse_battery_overlay_scale", 1f, 0.1f, 0.6f..2f)
+    val MOUSE_BATTERY_OVERLAY_ALPHA = PrefKey("mouse_battery_overlay_alpha", 0.9f, 0.05f, 0.2f..1f)
+    val MOUSE_BATTERY_OVERLAY_X = PrefKey("mouse_battery_overlay_x", 0.8f, 0.01f, 0f..1f)
+    val MOUSE_BATTERY_OVERLAY_Y = PrefKey("mouse_battery_overlay_y", 0.08f, 0.01f, 0f..1f)
+    val MOUSE_BATTERY_OVERLAY_COLOR = PrefKey("mouse_battery_overlay_color", 0f, 1f, 0f..3f)
+    val MOUSE_DIAGNOSTICS_ENABLED = PrefKey("mouse_diagnostics_enabled", false)
+    val MOUSE_GESTURE_TRACE_ENABLED = PrefKey("mouse_gesture_trace_enabled", false)
+    val MOUSE_AXIS_ROTATION = PrefKey("mouse_axis_rotation", 0f, 90f, 0f..270f)
+    val S_PEN_OBSERVED_LEVEL = PrefKey("spen_observed_battery_percent", -1)
+    val S_PEN_OBSERVED_AT = PrefKey("spen_observed_battery_timestamp_ms", 0L)
+    val MOUSE_HOLD_ACTION = PrefKey("mouse_hold_action", 0f, 1f, 0f..4f)
+    val MOUSE_DOUBLE_PRESS_ACTION = PrefKey("mouse_double_press_action", 0f, 1f, 0f..5f)
+    val MOUSE_TRIPLE_PRESS_ACTION = PrefKey("mouse_triple_press_action", 0f, 1f, 0f..5f)
+    val MOUSE_TEXT_SELECTION_SENSITIVITY_SCALE = 0.30f
+    val MOUSE_HOLD_THRESHOLD_MS = PrefKey("mouse_hold_threshold_ms", 450f, 50f, 250f..900f)
+    val MOUSE_ACCELERATION = PrefKey("mouse_acceleration", 1.5f, 0.5f, 0f..3f)
     val MOUSE_CURSOR_SIZE = PrefKey("cursor_size", 60f, 1f, 20f..250f)
     val MOUSE_CURSOR_TYPE = PrefKey("cursor_type", CursorType.Light)
     val MOUSE_CURSOR_ALPHA = PrefKey("cursor_alpha", 1f, step = 0.05f, range = 0.05f..1f)
     val MOUSE_CURSOR_HIDE_DELAY = PrefKey("time_to_hide_cursor", 10f, 5f, 5f..305f)
     val MOUSE_SLEEP_ENABLED = PrefKey("spen_sleep_enabled", true)
+    val MOUSE_REALTIME_DRAG = PrefKey("mouse_realtime_drag", false)
+    val MOUSE_ADAPTIVE_DRAG = PrefKey("mouse_adaptive_drag", false)
+    val MOUSE_CAPTURE_LATE_MOTION = PrefKey("mouse_capture_late_motion", false)
+    val MOUSE_DRAG_SEGMENT_MS = PrefKey("mouse_drag_segment_ms", 8f, 1f, 1f..32f)
     val POINT_CURSOR_TYPE = PrefKey("point_cursor_type", CursorType.Light)
     val POINT_CURSOR_ALPHA = PrefKey("point_cursor_alpha", 1f, step = 0.05f, range = 0.05f..1f)
     val POINT_CURSOR_SIZE = PrefKey("point_cursor_size", 60f, 1f, 20f..250f)
