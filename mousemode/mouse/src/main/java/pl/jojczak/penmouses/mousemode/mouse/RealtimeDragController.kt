@@ -9,6 +9,7 @@ internal class RealtimeDragController(
     private val releaseGraceMs: Long = 0L,
     private val clockMs: () -> Long = { System.nanoTime() / 1_000_000L },
     private val onReleaseGrace: (String) -> Unit = {},
+    private val onReleaseBrake: (String) -> Unit = {},
 
 ) {
     data class Point(val x: Float, val y: Float)
@@ -37,6 +38,10 @@ internal class RealtimeDragController(
     private var continuing = false
     private var end = Point(0f, 0f)
     private var target = end
+    private var pressStart = end
+    // Horizontal swipes need a stationary pointer-up tail to avoid Gallery
+    // interpreting a final high-velocity move as a multi-photo fling.
+    private var brakeOnRelease = false
     private var inFlight = false
     private var serial = 0L
     private var cancelWatchdog: (() -> Unit)? = null
@@ -54,6 +59,8 @@ internal class RealtimeDragController(
         continuing = false
         end = point
         target = point
+        pressStart = point
+        brakeOnRelease = false
         finishResult = Result.RELEASED
         gracePending = false
         pressStartedAtMs = clockMs()
@@ -93,7 +100,18 @@ internal class RealtimeDragController(
             return
         }
         val heldMs = clockMs() - pressStartedAtMs
-        val eligible = !closed && finishResult == Result.RELEASED &&
+        val horizontalDistance = kotlin.math.abs(target.x - pressStart.x)
+        val verticalDistance = kotlin.math.abs(target.y - pressStart.y)
+        brakeOnRelease = !closed && finishResult == Result.RELEASED &&
+            horizontalDistance >= MIN_HORIZONTAL_SWIPE_PX &&
+            horizontalDistance >= verticalDistance * HORIZONTAL_DOMINANCE
+        if (brakeOnRelease) {
+            onReleaseBrake("armed dx=${target.x - pressStart.x} dy=${target.y - pressStart.y} " +
+                "holdMs=${heldMs} stationaryReleaseMs=$FLING_BRAKE_MS")
+        }
+        // Do not accept delayed sensor samples after a completed horizontal swipe.
+        // Previously a single release could add another ~160 px to a Gallery fling.
+        val eligible = !brakeOnRelease && !closed && finishResult == Result.RELEASED &&
             releaseGraceMs > 0L && heldMs in MIN_GRACE_HOLD_MS..MAX_GRACE_HOLD_MS
         if (eligible) {
             gracePending = true
@@ -134,12 +152,13 @@ internal class RealtimeDragController(
             to = target,
             durationMs = when {
                 !continuing -> 1L
+                !pressed && brakeOnRelease && end == target -> FLING_BRAKE_MS
                 !pressed && end != target -> segmentDurationMs.coerceIn(12L, 32L)
                 !pressed -> 1L
                 else -> backend.suggestedDurationMs(segmentDurationMs.coerceIn(1L, 32L))
             },
             continuing = continuing,
-            willContinue = pressed,
+            willContinue = pressed || (brakeOnRelease && end != target),
         )
         val request = ++serial
         inFlight = true
@@ -178,6 +197,7 @@ internal class RealtimeDragController(
         pressed = false
         inFlight = false
         continuing = false
+        brakeOnRelease = false
         cancelWatchdog?.invoke()
         cancelHoldLimit?.invoke()
         cancelGrace?.invoke()
@@ -195,5 +215,8 @@ internal class RealtimeDragController(
         private const val MIN_GRACE_HOLD_MS = 115L
         private const val MAX_GRACE_HOLD_MS = 480L
         private const val MIN_LATE_SAMPLE_PX = 28f
+        private const val MIN_HORIZONTAL_SWIPE_PX = 180f
+        private const val HORIZONTAL_DOMINANCE = 1.5f
+        private const val FLING_BRAKE_MS = 96L
     }
 }

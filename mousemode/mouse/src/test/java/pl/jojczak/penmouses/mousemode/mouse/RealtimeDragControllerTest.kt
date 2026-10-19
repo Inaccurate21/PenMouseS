@@ -53,10 +53,12 @@ class RealtimeDragControllerTest {
         val backend = Backend()
         val results = mutableListOf<Result>()
         val graceEvents = mutableListOf<String>()
+        val brakeEvents = mutableListOf<String>()
         val controller = RealtimeDragController(
             backend, clock::schedule, duration, results::add,
             releaseGraceMs = graceMs, clockMs = clock::timeMs,
-            onReleaseGrace = graceEvents::add
+            onReleaseGrace = graceEvents::add,
+            onReleaseBrake = brakeEvents::add
         )
     }
 
@@ -284,6 +286,91 @@ class RealtimeDragControllerTest {
         assertFalse(f.controller.isActive)
         f.clock.advance(400L)
         assertEquals(2, f.backend.segments.size)
+    }
+
+
+    @Test fun horizontalGallerySwipeEndsInStationaryReleaseAndSkipsLateSensorSample() {
+        val f = Fixture(duration = 32L, graceMs = 140L)
+        val p = f.controller
+        p.press(Point(1200f, 800f))
+        f.backend.complete(0)
+        f.clock.advance(220L)
+        p.move(Point(850f, 820f))
+        f.backend.complete(1)
+        p.move(Point(600f, 830f))
+        p.release()
+        assertFalse(p.awaitingLateMotion)
+        assertEquals(Point(850f, 820f), f.backend.segments[2].from)
+        assertEquals(Point(600f, 830f), f.backend.segments[2].to)
+        assertTrue(f.backend.segments[2].willContinue)
+        f.backend.complete(2)
+        val tail = f.backend.segments[3]
+        assertTrue(tail.continuing)
+        assertFalse(tail.willContinue)
+        assertEquals(tail.from, tail.to)
+        assertEquals(96L, tail.durationMs)
+        p.move(Point(300f, 900f))
+        assertEquals(4, f.backend.segments.size)
+        f.backend.complete(3)
+        assertEquals(listOf(Result.RELEASED), f.results)
+        assertTrue(f.brakeEvents.any { it.contains("stationaryReleaseMs=96") })
+        assertTrue(f.graceEvents.isEmpty())
+    }
+
+    @Test fun galleryBrakeWorksWhenLastMovementWasAlreadyDispatched() {
+        val f = Fixture()
+        val p = f.controller
+        p.press(Point(600f, 300f))
+        f.backend.complete(0)
+        p.move(Point(280f, 295f))
+        f.backend.complete(1)
+        p.release()
+        val tail = f.backend.segments[2]
+        assertEquals(tail.from, tail.to)
+        assertFalse(tail.willContinue)
+        assertEquals(96L, tail.durationMs)
+        f.backend.complete(2)
+        assertEquals(listOf(Result.RELEASED), f.results)
+    }
+
+    @Test fun shortClickAndVerticalDragKeepOriginalReleaseTiming() {
+        val f = Fixture(graceMs = 140L)
+        val p = f.controller
+        p.press(Point(500f, 500f))
+        f.backend.complete(0)
+        p.move(Point(502f, 504f))
+        f.backend.complete(1)
+        p.release()
+        assertFalse(p.awaitingLateMotion)
+        assertEquals(1L, f.backend.segments[2].durationMs)
+        f.backend.complete(2)
+
+        p.press(Point(500f, 500f))
+        f.backend.complete(3)
+        f.clock.advance(160L)
+        p.move(Point(510f, 100f))
+        f.backend.complete(4)
+        p.release()
+        assertTrue(p.awaitingLateMotion)
+        f.clock.advance(140L)
+        assertEquals(1L, f.backend.segments[5].durationMs)
+        f.backend.complete(5)
+        assertTrue(f.brakeEvents.isEmpty())
+    }
+
+    @Test fun interruptedHorizontalDragNeverInjectsAnotherTap() {
+        val f = Fixture()
+        val p = f.controller
+        p.press(Point(1000f, 500f))
+        f.backend.complete(0)
+        p.move(Point(600f, 500f))
+        f.backend.complete(1)
+        p.close()
+        val tail = f.backend.segments[2]
+        assertFalse(tail.willContinue)
+        assertEquals(1L, tail.durationMs)
+        f.backend.complete(2)
+        assertEquals(listOf(Result.CLOSED), f.results)
     }
 
     @Test fun durationIsClampedAndNonFiniteMotionIgnored() {

@@ -141,6 +141,9 @@ class MouseMode(
             onReleaseGrace = { detail ->
                 DiagnosticRecorder.record("late-motion", detail)
             },
+            onReleaseBrake = { detail ->
+                DiagnosticRecorder.record("drag-brake", detail)
+            },
             onFinished = { result ->
                 if (generation != dragGeneration || !canStartJobs) return@RealtimeDragController
                 cursorAnimator.releaseCursor()
