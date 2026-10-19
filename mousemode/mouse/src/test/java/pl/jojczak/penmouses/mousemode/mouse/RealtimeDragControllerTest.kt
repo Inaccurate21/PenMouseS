@@ -18,6 +18,7 @@ class RealtimeDragControllerTest {
             tasks.add(task)
             return { task.cancelled = true }
         }
+        fun timeMs() = now
         fun advance(ms: Long) {
             val until = now + ms
             while (tasks.isNotEmpty() && tasks.peek().due <= until) {
@@ -47,11 +48,16 @@ class RealtimeDragControllerTest {
         override fun reset() { resets++ }
     }
 
-    private class Fixture(duration: Long = 16L) {
+    private class Fixture(duration: Long = 16L, graceMs: Long = 0L) {
         val clock = Clock()
         val backend = Backend()
         val results = mutableListOf<Result>()
-        val controller = RealtimeDragController(backend, clock::schedule, duration, results::add)
+        val graceEvents = mutableListOf<String>()
+        val controller = RealtimeDragController(
+            backend, clock::schedule, duration, results::add,
+            releaseGraceMs = graceMs, clockMs = clock::timeMs,
+            onReleaseGrace = graceEvents::add
+        )
     }
 
     @Test fun pressDispatchesDownImmediatelyAndStationaryHoldDoesNotPoll() {
@@ -203,6 +209,81 @@ class RealtimeDragControllerTest {
         assertEquals(listOf(Result.RELEASED, Result.RELEASED), f.results)
         f.clock.advance(40_000L)
         assertEquals(4, f.backend.segments.size)
+    }
+
+
+    @Test fun optInLateSampleCapturedBeforeGestureEnds() {
+        val f = Fixture(graceMs = 140L)
+        val p = f.controller
+        assertTrue(p.press(Point(300f, 400f)))
+        f.backend.complete(0)
+        f.clock.advance(170L)
+        p.release()
+        assertTrue(p.awaitingLateMotion)
+        assertEquals(1, f.backend.segments.size)
+        f.clock.advance(45L)
+        p.move(Point(480f, 400f))
+        assertFalse(p.awaitingLateMotion)
+        assertEquals(2, f.backend.segments.size)
+        assertEquals(Point(480f, 400f), f.backend.segments[1].to)
+        assertFalse(f.backend.segments[1].willContinue)
+        assertTrue(f.backend.segments[1].durationMs >= 12L)
+        f.backend.complete(1)
+        assertEquals(listOf(Result.RELEASED), f.results)
+        assertTrue(f.graceEvents.any { it.contains("sample-captured") })
+        p.move(Point(700f, 400f))
+        assertEquals(2, f.backend.segments.size)
+    }
+
+    @Test fun optInTimeoutReleasesWithoutLateSensorSample() {
+        val f = Fixture(graceMs = 140L)
+        f.controller.press(Point(300f, 400f))
+        f.backend.complete()
+        f.clock.advance(165L)
+        f.controller.release()
+        assertTrue(f.controller.awaitingLateMotion)
+        f.clock.advance(139L)
+        assertEquals(1, f.backend.segments.size)
+        f.clock.advance(1L)
+        assertFalse(f.controller.awaitingLateMotion)
+        assertEquals(2, f.backend.segments.size)
+        assertFalse(f.backend.segments[1].willContinue)
+        f.backend.complete()
+        assertEquals(listOf(Result.RELEASED), f.results)
+        assertTrue(f.graceEvents.any { it == "timeout" })
+    }
+
+    @Test fun optInShortTapAndLongHoldDoNotWait() {
+        val f = Fixture(graceMs = 140L)
+        f.controller.press(Point(100f, 100f))
+        f.backend.complete()
+        f.clock.advance(70L)
+        f.controller.release()
+        assertFalse(f.controller.awaitingLateMotion)
+        f.backend.complete()
+        f.controller.press(Point(100f, 100f))
+        f.backend.complete()
+        f.clock.advance(600L)
+        f.controller.release()
+        assertFalse(f.controller.awaitingLateMotion)
+        f.backend.complete()
+        assertEquals(listOf(Result.RELEASED, Result.RELEASED), f.results)
+    }
+
+    @Test fun closingWhileWaitingForLateMotionLiftsPointerImmediately() {
+        val f = Fixture(graceMs = 140L)
+        f.controller.press(Point(100f, 100f))
+        f.backend.complete()
+        f.clock.advance(170L)
+        f.controller.release()
+        assertTrue(f.controller.awaitingLateMotion)
+        f.controller.close()
+        assertFalse(f.controller.awaitingLateMotion)
+        assertEquals(2, f.backend.segments.size)
+        f.backend.complete(1)
+        assertFalse(f.controller.isActive)
+        f.clock.advance(400L)
+        assertEquals(2, f.backend.segments.size)
     }
 
     @Test fun durationIsClampedAndNonFiniteMotionIgnored() {
