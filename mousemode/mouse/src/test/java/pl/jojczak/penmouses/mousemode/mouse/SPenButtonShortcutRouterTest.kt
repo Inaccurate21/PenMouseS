@@ -83,6 +83,30 @@ class SPenButtonShortcutRouterTest {
         assertEquals(listOf("tap", "dragDown", "dragUp"), calls)
     }
 
+    @Test fun movementWhilePressedStartsDragBeforeDoubleClickDelay() {
+        val r = router(double = 1)
+        r.down()
+        r.onPointerMotion(10f)
+        r.onPointerMotion(19f)
+        assertEquals(listOf("dragDown"), calls)
+        r.up()
+        fire(120)
+        fire(280)
+        assertEquals(listOf("dragDown", "dragUp"), calls)
+    }
+
+    @Test fun tinyHandMovementStillAllowsDoubleClick() {
+        val r = router(double = 1)
+        r.down()
+        r.onPointerMotion(3f)
+        r.up()
+        r.down()
+        r.onPointerMotion(2f)
+        r.up()
+        fire(280)
+        assertEquals(listOf("double:1"), calls)
+    }
+
     @Test fun cancelStopsAllPendingClickActions() {
         val r = router(double = 1)
         r.down()
