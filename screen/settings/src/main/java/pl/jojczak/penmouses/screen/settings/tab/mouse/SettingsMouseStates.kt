@@ -9,6 +9,7 @@ internal data class SettingsMouseState(
     val sPenSensitivity: Float = 0.0f,
     val mouseAcceleration: Float = 1.5f,
     val holdAction: Float = 0f,
+    val doublePressAction: Float = 0f,
     val holdThresholdMs: Float = 450f,
     val axisRotation: Float = 0f,
     val diagnosticsEnabled: Boolean = false,
