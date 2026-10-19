@@ -55,6 +55,7 @@ class MouseMode(
     private var prefAcceleration = preferences.get(PrefKeys.MOUSE_ACCELERATION)
     private var prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
     private val airMotionAcceleration = AirMotionAcceleration()
+    private val motionBurstGovernor = MotionBurstGovernor(SystemClock::uptimeMillis)
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
 
@@ -101,6 +102,7 @@ class MouseMode(
     private var receiverRegistered = false
     private var dragGeneration = 0L
     private var lastDiagnosticMotionMs = 0L
+    private var lastMotionBudgetDiagnosticMs = 0L
     private var buttonHoldAction = preferences.get(PrefKeys.MOUSE_HOLD_ACTION).toInt()
     private var doubleButtonAction = preferences.get(PrefKeys.MOUSE_DOUBLE_PRESS_ACTION).toInt()
     private var shortcutRouter: SPenButtonShortcutRouter? = buildShortcutRouter()
@@ -234,6 +236,7 @@ class MouseMode(
 
     override fun start() {
         super.start()
+        motionBurstGovernor.reset()
 
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
         DiagnosticRecorder.record("mode", "start mouse realtime=$realtimeEnabled")
@@ -326,6 +329,7 @@ class MouseMode(
         if (!canStartJobs) return
         DiagnosticRecorder.record("motion", "manual sensor listener restart")
         airMotionAcceleration.reset()
+        motionBurstGovernor.reset()
         motionX = null
         motionY = null
         sPenManager.unregisterAirMotionEventListener()
@@ -345,6 +349,7 @@ class MouseMode(
         sPenBatteryOverlay.hide()
         legacyButtonDown = false
         airMotionAcceleration.reset()
+        motionBurstGovernor.reset()
         sPenManager.onConnectionLost = null
         if (receiverRegistered) {
             context.unregisterReceiver(screenOffReceiver)
@@ -440,10 +445,26 @@ class MouseMode(
                     "effectiveX=${stable.dx} effectiveY=${stable.dy}"
             )
         }
-        shortcutRouter?.onPointerMotion(stable.limitedPixels)
-        motionX = ((motionX ?: position.x.toFloat()) + stable.dx)
+        // A series of large impulses can accumulate into a teleport even after
+        // every individual sample is limited to ~420px. Restrict total distance
+        // per elapsed time too. Discard excess instead of replaying later.
+        val governed = motionBurstGovernor.filter(stable.dx, stable.dy)
+        val now = SystemClock.uptimeMillis()
+        if (DiagnosticRecorder.isEnabled() && governed.reducedPixels > 24f &&
+            now - lastMotionBudgetDiagnosticMs > 200L) {
+            lastMotionBudgetDiagnosticMs = now
+            DiagnosticRecorder.record(
+                "motion-burst",
+                "incomingPx=${governed.requestedPixels} acceptedPx=${governed.acceptedPixels} " +
+                    "discardedPx=${governed.reducedPixels} " +
+                    "elapsedMs=${governed.elapsedMs} remainingBudgetPx=${governed.budgetPixels} " +
+                    "sensitivity=$prefSensitivity acceleration=$prefAcceleration"
+            )
+        }
+        shortcutRouter?.onPointerMotion(governed.acceptedPixels)
+        motionX = ((motionX ?: position.x.toFloat()) + governed.dx)
             .coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
-        motionY = ((motionY ?: position.y.toFloat()) + stable.dy)
+        motionY = ((motionY ?: position.y.toFloat()) + governed.dy)
             .coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
             x = motionX!!.roundToInt()
@@ -591,6 +612,7 @@ class MouseMode(
         if (newRotation != prefRotation) {
             prefRotation = newRotation
             airMotionAcceleration.reset()
+            motionBurstGovernor.reset()
             DiagnosticRecorder.record("preferences", "axis changed; sensor velocity reinitialized")
         }
         val sensitivityChanged = newSensitivity != prefSensitivity
