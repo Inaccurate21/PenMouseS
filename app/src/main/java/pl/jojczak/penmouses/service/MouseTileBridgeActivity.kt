@@ -2,6 +2,8 @@ package pl.jojczak.penmouses.service
 
 import android.app.Activity
 import android.os.Bundle
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
@@ -37,7 +39,10 @@ class MouseTileBridgeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        DiagnosticRecorder.record("quick-tile", "bridge activity created")
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+        DiagnosticRecorder.record("quick-tile", "isolated translucent bridge activity created")
     }
 
     override fun onResume() {
