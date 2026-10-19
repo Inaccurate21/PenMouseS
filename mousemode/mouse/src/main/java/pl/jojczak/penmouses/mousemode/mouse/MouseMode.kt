@@ -379,6 +379,7 @@ class MouseMode(
         if (scale < 1f) {
             DiagnosticRecorder.record("motion-anomaly", "bounded rawDistancePx=$distancePx factor=$scale dx=${movement.dx} dy=${movement.dy}")
         }
+        shortcutRouter?.onPointerMotion(distancePx * scale)
         motionX = ((motionX ?: position.x.toFloat()) + movement.dx * scale).coerceIn(0f, (screenWidth - 1).coerceAtLeast(0).toFloat())
         motionY = ((motionY ?: position.y.toFloat()) + movement.dy * scale).coerceIn(0f, (screenHeight - 1).coerceAtLeast(0).toFloat())
         updateCursorLayoutParams {
