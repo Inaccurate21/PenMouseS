@@ -38,7 +38,7 @@ object DiagnosticRecorder {
         this.context = context.applicationContext
         enabled = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
             .getBoolean(PrefKeys.MOUSE_DIAGNOSTICS_ENABLED.name, false)
-        if (enabled) record("process", "diagnostic process started (previous logs retained)")
+        if (enabled) record("process", "diagnostic process started appVersion=${appVersion(context)} (previous logs retained)")
     }
 
     @Synchronized fun setEnabled(value: Boolean) {
@@ -52,6 +52,12 @@ object DiagnosticRecorder {
     }
 
     fun isEnabled(): Boolean = enabled
+
+    @Suppress("DEPRECATION")
+    private fun appVersion(context: Context): String = runCatching {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        "${info.versionName} (versionCode=${info.longVersionCode})"
+    }.getOrDefault("unavailable")
 
     @Synchronized fun record(tag: String, message: String) {
         if (!enabled) return
@@ -120,11 +126,12 @@ object DiagnosticRecorder {
             appendLine("Created: ${clock.format(Date(now))}")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} / Android SDK ${Build.VERSION.SDK_INT}")
             appendLine("Package: ${context.packageName}")
+            appendLine("Installed APK: ${appVersion(context)}")
             appendLine("Mouse status AT EXPORT: ${AppToServiceEvent.serviceStatus.value}")
             appendLine("Last recorded event: ${lastLine?.take(23) ?: "none"}")
             if (lastTime != null) appendLine("Time since last recorded event: ${(now - lastTime).coerceAtLeast(0L) / 1000}s (not measured while app/service inactive)")
             appendLine("Persistent log: ${if (flushed) "flushed" else "flush timeout; recent in-memory fallback"}; oldest data rotates after 7 MB, 2 files, retention up to 7 days")
-            appendLine("Scope: service/tiles/UI lifecycle, motion deltas, click holds, gesture timing, battery parser status; no screen text")
+            appendLine("Scope: service/tiles/UI lifecycle, motion deltas, burst-adjacent detailed frames, click holds, gesture timing, battery parser status; no screen text")
             appendLine("Detailed trace records injected touch coordinates; Gallery UI responses are indirect evidence, not proof a photo changed.")
             appendLine("Settings:")
             settings.forEach { (key, value) -> appendLine("  $key=$value") }

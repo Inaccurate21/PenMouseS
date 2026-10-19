@@ -56,6 +56,15 @@ class MouseMode(
     private var prefRotation = preferences.get(PrefKeys.MOUSE_AXIS_ROTATION).toInt()
     private val airMotionAcceleration = AirMotionAcceleration()
     private val motionBurstGovernor = MotionBurstGovernor(SystemClock::uptimeMillis)
+    // Only capture full samples around bursts when the existing detailed tracing is enabled.
+    // This is observational: never feed trace state back into pointer movement.
+    private val motionTrace = MotionTraceWindow(
+        beforeCount = 12,
+        afterCount = 12,
+        log = { DiagnosticRecorder.record("motion-frame", it) },
+    )
+    private var previousTraceSdkTimestampMs: Long? = null
+    private var previousTraceArrivalMs: Long? = null
     private var prefHideDelay = cursorPreferences.getHideDelay()
     private var prefIsSleepEnabled = cursorPreferences.isSleepEnabled()
 
@@ -237,6 +246,9 @@ class MouseMode(
     override fun start() {
         super.start()
         motionBurstGovernor.reset()
+        motionTrace.reset()
+        previousTraceSdkTimestampMs = null
+        previousTraceArrivalMs = null
 
         cursorAnimator.targetOpacity = cursorPreferences.getOpacity(modeStatus = ModeStatus.Mouse)
         DiagnosticRecorder.record("mode", "start mouse realtime=$realtimeEnabled")
@@ -330,6 +342,9 @@ class MouseMode(
         DiagnosticRecorder.record("motion", "manual sensor listener restart")
         airMotionAcceleration.reset()
         motionBurstGovernor.reset()
+        motionTrace.reset()
+        previousTraceSdkTimestampMs = null
+        previousTraceArrivalMs = null
         motionX = null
         motionY = null
         sPenManager.unregisterAirMotionEventListener()
@@ -350,6 +365,9 @@ class MouseMode(
         legacyButtonDown = false
         airMotionAcceleration.reset()
         motionBurstGovernor.reset()
+        motionTrace.reset()
+        previousTraceSdkTimestampMs = null
+        previousTraceArrivalMs = null
         sPenManager.onConnectionLost = null
         if (receiverRegistered) {
             context.unregisterReceiver(screenOffReceiver)
@@ -473,6 +491,40 @@ class MouseMode(
         if (realtimeEnabled) {
             val point = getCursorPos()
             dragController?.move(RealtimeDragController.Point(point.x.toFloat(), point.y.toFloat()))
+        }
+
+        // Existing 160ms [motion] sampling misses intervening ~40ms SDK callbacks.
+        // Detailed mode records contiguous frames before and after each detected burst.
+        // The logger writes to disk on its dedicated worker, not in the S Pen callback.
+        if (GestureTraceRecorder.isEnabled()) {
+            val sdkInterval = previousTraceSdkTimestampMs?.let { timeStamp - it } ?: -1L
+            val callbackInterval = previousTraceArrivalMs?.let { now - it } ?: -1L
+            previousTraceSdkTimestampMs = timeStamp
+            previousTraceArrivalMs = now
+            val rawUnitDistance = hypot(deltaX, deltaY)
+            val unboostedPixels = rawUnitDistance * 20f * prefSensitivity.coerceIn(1f, 400f)
+            val appliedGain = if (unboostedPixels > 0f) {
+                stable.rawPixels / unboostedPixels
+            } else 1f
+            motionTrace.add(
+                detail = "uptimeMs=$now sdkTimestampMs=$timeStamp sdkDtMs=$sdkInterval " +
+                    "callbackDtMs=$callbackInterval sdkDx=$deltaX sdkDy=$deltaY " +
+                    "gain=$appliedGain rawX=${movement.dx} rawY=${movement.dy} " +
+                    "softX=${stable.dx} softY=${stable.dy} " +
+                    "outX=${governed.dx} outY=${governed.dy} " +
+                    "discarded=${governed.reducedPixels} budget=${governed.budgetPixels} " +
+                    "cursorBefore=(${position.x},${position.y}) " +
+                    "cursorAfter=(${motionX!!.roundToInt()},${motionY!!.roundToInt()}) " +
+                    "sensitivity=$prefSensitivity accel=$prefAcceleration axis=$prefRotation",
+                trigger = stable.rawPixels > 240f ||
+                    governed.reducedPixels > 24f ||
+                    (sdkInterval != -1L && (sdkInterval <= 0L || sdkInterval > 500L)) ||
+                    (callbackInterval != -1L && callbackInterval < 0L),
+            )
+        } else {
+            previousTraceSdkTimestampMs = null
+            previousTraceArrivalMs = null
+            motionTrace.reset()
         }
     }
 
