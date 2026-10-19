@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 object AppToServiceEvent {
     val serviceStatus = MutableStateFlow<ModeStatus>(ModeStatus.Off)
+    val sPenReady = MutableStateFlow(false)
     val event = MutableSharedFlow<Event>(extraBufferCapacity = 1)
 
     sealed class Event {
